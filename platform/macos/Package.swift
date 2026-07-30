@@ -24,8 +24,12 @@ let package = Package(
             linkerSettings: [.linkedLibrary("dl")]
         ),
         .target(
+            name: "StorPulseSQLiteBridge",
+            linkerSettings: [.linkedLibrary("sqlite3")]
+        ),
+        .target(
             name: "StorPulseMacUI",
-            dependencies: ["StorPulseMacAdapter", "StorPulseFFIBridge"]
+            dependencies: ["StorPulseMacAdapter", "StorPulseFFIBridge", "StorPulseSQLiteBridge"]
         ),
         .executableTarget(
             name: "StorPulseMacApp",

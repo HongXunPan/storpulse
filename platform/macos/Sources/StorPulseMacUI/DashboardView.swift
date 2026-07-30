@@ -2,10 +2,15 @@ import SwiftUI
 
 public struct DashboardView: View {
     @ObservedObject private var monitor: RealtimeMonitor
+    private let openHistory: @MainActor () -> Void
     @State private var sort: ApplicationSort = .current
 
-    public init(monitor: RealtimeMonitor) {
+    public init(
+        monitor: RealtimeMonitor,
+        openHistory: @escaping @MainActor () -> Void = {}
+    ) {
         self.monitor = monitor
+        self.openHistory = openHistory
     }
 
     public var body: some View {
@@ -31,6 +36,12 @@ public struct DashboardView: View {
                 )
             }
             Spacer()
+            Button {
+                openHistory()
+            } label: {
+                Label("历史与提醒", systemImage: "clock.arrow.circlepath")
+            }
+            .controlSize(.large)
             observationButton
             Picker("排序", selection: $sort) {
                 ForEach(ApplicationSort.allCases) { item in

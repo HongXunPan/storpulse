@@ -22,6 +22,11 @@ public enum SamplingState: Equatable, Sendable {
     }
 }
 
+public protocol RealtimeSnapshotObserver: Sendable {
+    func realtimeSnapshotProduced(_ snapshot: RealtimeSnapshot) async
+    func observationSessionEnded(_ session: ObservationSession) async
+}
+
 @MainActor
 public final class RealtimeMonitor: ObservableObject {
     @Published public private(set) var snapshot: RealtimeSnapshot?
@@ -30,6 +35,7 @@ public final class RealtimeMonitor: ObservableObject {
 
     private let engine: any StorPulseEngineClient
     private let source: any SnapshotSource
+    private let observers: [any RealtimeSnapshotObserver]
     private let sampleIntervalNanoseconds: UInt64
     private var consecutiveFailures = 0
     private var samplingTask: Task<Void, Never>?
@@ -37,10 +43,12 @@ public final class RealtimeMonitor: ObservableObject {
     public init(
         engine: any StorPulseEngineClient,
         source: any SnapshotSource = MacOSSnapshotSource(),
+        observers: [any RealtimeSnapshotObserver] = [],
         sampleIntervalNanoseconds: UInt64 = 1_000_000_000
     ) {
         self.engine = engine
         self.source = source
+        self.observers = observers
         self.sampleIntervalNanoseconds = sampleIntervalNanoseconds
     }
 
@@ -85,6 +93,9 @@ public final class RealtimeMonitor: ObservableObject {
             consecutiveFailures = 0
             lastErrorMessage = nil
             samplingState = realtime.freshness == "fresh" ? .live : .stale
+            for observer in observers {
+                await observer.realtimeSnapshotProduced(realtime)
+            }
         } catch {
             consecutiveFailures += 1
             lastErrorMessage = error.localizedDescription
@@ -115,6 +126,9 @@ public final class RealtimeMonitor: ObservableObject {
         do {
             let response = try await engine.execute(command)
             if case let .observationStopped(session) = response {
+                for observer in observers {
+                    await observer.observationSessionEnded(session)
+                }
                 await refreshSnapshot()
                 return session
             }

@@ -3,15 +3,18 @@ import SwiftUI
 public struct StatusPopoverView: View {
     @ObservedObject private var monitor: RealtimeMonitor
     private let openDashboard: @MainActor () -> Void
+    private let openHistory: @MainActor () -> Void
     private let quitApplication: @MainActor () -> Void
 
     public init(
         monitor: RealtimeMonitor,
         openDashboard: @escaping @MainActor () -> Void,
+        openHistory: @escaping @MainActor () -> Void,
         quitApplication: @escaping @MainActor () -> Void
     ) {
         self.monitor = monitor
         self.openDashboard = openDashboard
+        self.openHistory = openHistory
         self.quitApplication = quitApplication
     }
 
@@ -106,6 +109,7 @@ public struct StatusPopoverView: View {
         HStack {
             Button("打开详细视图") { openDashboard() }
                 .keyboardShortcut("o", modifiers: .command)
+            Button("历史与提醒") { openHistory() }
             Spacer()
             Button("退出") { quitApplication() }
                 .keyboardShortcut("q", modifiers: .command)
