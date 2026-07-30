@@ -8,14 +8,19 @@ ORIGINAL_HOME="${HOME}"
 mkdir -p "${TMP_DIR}/home" "${TMP_DIR}/module-cache" "${TMP_DIR}/swift"
 
 if [[ -f "${ROOT_DIR}/Cargo.toml" ]]; then
-  RUST_BIN="$(dirname "$(rustup which cargo)")"
+  RUST_BIN="${STORPULSE_RUST_BIN:-}"
+  if [[ -z "${RUST_BIN}" ]]; then
+    RUST_BIN="$(dirname "$(rustup which --toolchain stable cargo)")"
+  fi
   export PATH="${RUST_BIN}:${PATH}"
+  export CARGO_HOME="${ROOT_DIR}/.codex-tmp/cargo-home"
+  export CARGO_TARGET_DIR="${ROOT_DIR}/.codex-tmp/cargo-target"
   (
     cd "${ROOT_DIR}"
     cargo fmt --all -- --check
-    cargo check --workspace --all-targets
-    cargo test --workspace
-    cargo clippy --workspace --all-targets -- -D warnings
+    cargo check --locked --workspace --all-targets
+    cargo test --locked --workspace
+    cargo clippy --locked --workspace --all-targets -- -D warnings
   )
 else
   echo "Rust 工作区尚未建立，跳过 Rust 校验。"
