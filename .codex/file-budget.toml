@@ -1,0 +1,19 @@
+[defaults]
+docs_soft_lines = 260
+docs_hard_lines = 420
+code_soft_loc = 320
+code_hard_loc = 520
+
+[ignore]
+globs = [
+  ".git/**",
+  ".build/**",
+  ".codex-tmp/**",
+  "target/**",
+  "DerivedData/**",
+  "**/*.generated.*",
+]
+
+[profiles."AGENTS.md"]
+docs_soft_lines = 180
+docs_hard_lines = 260
