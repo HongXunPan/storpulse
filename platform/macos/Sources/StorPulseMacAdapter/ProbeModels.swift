@@ -33,6 +33,10 @@ public struct ProcessIOSample: Codable, Sendable {
     public let identity: ProcessIdentity
     public let parentPID: Int32?
     public let executableName: String
+    public let applicationID: String?
+    public let applicationName: String?
+    public let isHelper: Bool
+    public let launchedByApplicationID: String?
     public let readBytes: UInt64
     public let writeBytes: UInt64
     public let userTimeNanoseconds: UInt64
@@ -44,6 +48,10 @@ public struct ProcessIOSample: Codable, Sendable {
         identity: ProcessIdentity,
         parentPID: Int32?,
         executableName: String,
+        applicationID: String? = nil,
+        applicationName: String? = nil,
+        isHelper: Bool = false,
+        launchedByApplicationID: String? = nil,
         readBytes: UInt64,
         writeBytes: UInt64,
         userTimeNanoseconds: UInt64,
@@ -54,12 +62,39 @@ public struct ProcessIOSample: Codable, Sendable {
         self.identity = identity
         self.parentPID = parentPID
         self.executableName = executableName
+        self.applicationID = applicationID
+        self.applicationName = applicationName
+        self.isHelper = isHelper
+        self.launchedByApplicationID = launchedByApplicationID
         self.readBytes = readBytes
         self.writeBytes = writeBytes
         self.userTimeNanoseconds = userTimeNanoseconds
         self.systemTimeNanoseconds = systemTimeNanoseconds
         self.residentBytes = residentBytes
         self.physicalFootprintBytes = physicalFootprintBytes
+    }
+
+    public func applying(
+        applicationID: String?,
+        applicationName: String?,
+        isHelper: Bool,
+        launchedByApplicationID: String?
+    ) -> ProcessIOSample {
+        ProcessIOSample(
+            identity: identity,
+            parentPID: parentPID,
+            executableName: executableName,
+            applicationID: applicationID,
+            applicationName: applicationName,
+            isHelper: isHelper,
+            launchedByApplicationID: launchedByApplicationID,
+            readBytes: readBytes,
+            writeBytes: writeBytes,
+            userTimeNanoseconds: userTimeNanoseconds,
+            systemTimeNanoseconds: systemTimeNanoseconds,
+            residentBytes: residentBytes,
+            physicalFootprintBytes: physicalFootprintBytes
+        )
     }
 }
 
@@ -143,5 +178,17 @@ public struct RawSnapshot: Codable, Sendable {
         self.processes = processes
         self.devices = devices
         self.summary = summary
+    }
+
+    public func replacingProcesses(_ processes: [ProcessIOSample]) -> RawSnapshot {
+        RawSnapshot(
+            capturedAt: capturedAt,
+            monotonicNanoseconds: monotonicNanoseconds,
+            freshness: freshness,
+            completeness: completeness,
+            processes: processes,
+            devices: devices,
+            summary: summary
+        )
     }
 }
