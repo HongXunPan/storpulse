@@ -35,6 +35,7 @@ New-Item -ItemType Directory -Force -Path $ScriptsDirectory | Out-Null
 
 Copy-Item -LiteralPath $BinaryPath -Destination (Join-Path $PackageRoot "storpulse-windows-probe.exe")
 Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-stage0/collect.ps1") -Destination $ScriptsDirectory
+Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-stage0/invoke-probe.ps1") -Destination $ScriptsDirectory
 Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-stage0/launch-admin.ps1") -Destination $ScriptsDirectory
 Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-stage0/collect-standard.cmd") -Destination (Join-Path $PackageRoot "收集标准用户日志.cmd")
 Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-stage0/collect-admin.cmd") -Destination (Join-Path $PackageRoot "收集管理员日志.cmd")

@@ -12,6 +12,8 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+. (Join-Path $PSScriptRoot "invoke-probe.ps1")
+
 $PackageRoot = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
 $ProbePath = Join-Path $PackageRoot "storpulse-windows-probe.exe"
 $ManifestPath = Join-Path $PackageRoot "package-manifest.json"
@@ -157,26 +159,23 @@ try {
     }
 
     $FailureStage = "run_probe"
-    $Arguments = @(
-        "--output", ('"{0}"' -f $RunDirectory),
-        "--duration-seconds", $DurationSeconds.ToString()
-    )
-    $Process = Start-Process -FilePath $ProbePath `
-        -ArgumentList $Arguments `
-        -PassThru `
-        -NoNewWindow `
-        -RedirectStandardOutput $StandardOutputPath `
-        -RedirectStandardError $StandardErrorPath
-    $Finished = $Process.WaitForExit(($DurationSeconds + 30) * 1000)
-    if (-not $Finished) {
-        Stop-Process -Id $Process.Id -Force
-        $Process.WaitForExit()
+    $ProbeRun = Invoke-StorPulseProbe `
+        -ProbePath $ProbePath `
+        -OutputDirectory $RunDirectory `
+        -DurationSeconds $DurationSeconds `
+        -StandardOutputPath $StandardOutputPath `
+        -StandardErrorPath $StandardErrorPath
+    if (-not $ProbeRun.finished) {
         $CollectorStatus = "probe_timeout"
         $FailureStage = "probe_timeout"
     }
+    elseif ($null -eq $ProbeRun.exitCode) {
+        $CollectorStatus = "probe_exit_code_missing"
+        $FailureStage = "probe_exit_code"
+        throw "无法读取探针退出码"
+    }
     else {
-        $Process.WaitForExit()
-        $ProbeExitCode = $Process.ExitCode
+        $ProbeExitCode = [int]$ProbeRun.exitCode
         $CollectorStatus = if ($ProbeExitCode -eq 0) { "completed" } else { "probe_failed" }
         $FailureStage = if ($ProbeExitCode -eq 0) { $null } else { "probe_exit" }
     }

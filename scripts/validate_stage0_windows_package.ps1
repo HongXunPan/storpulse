@@ -6,6 +6,18 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+function Write-PackageDiagnostics {
+    param([Parameter(Mandatory = $true)] [string]$Directory)
+
+    foreach ($FileName in @("collector-result.json", "console.log", "summary.json", "errors.json", "timeline.ndjson")) {
+        $Path = Join-Path $Directory $FileName
+        if (Test-Path -LiteralPath $Path -PathType Leaf) {
+            Write-Host "===== $FileName ====="
+            Write-Host ([System.IO.File]::ReadAllText($Path, [System.Text.Encoding]::UTF8))
+        }
+    }
+}
+
 $PackageRoot = [System.IO.Path]::GetFullPath($PackageRoot)
 $CollectorPath = Join-Path $PackageRoot "scripts/collect.ps1"
 $DiagnosticsRoot = Join-Path $PackageRoot "diagnostics"
@@ -58,7 +70,16 @@ $CollectorResultPath = Join-Path $RunDirectory.FullName "collector-result.json"
 $CollectorResultText = [System.IO.File]::ReadAllText($CollectorResultPath, [System.Text.Encoding]::UTF8)
 $CollectorResult = $CollectorResultText | ConvertFrom-Json
 if ($CollectorExitCode -ne 0 -or $CollectorResult.status -ne "completed") {
+    Write-PackageDiagnostics -Directory $RunDirectory.FullName
     throw "成品包采集入口失败：exitCode=$CollectorExitCode status=$($CollectorResult.status)"
+}
+
+$SummaryPath = Join-Path $RunDirectory.FullName "summary.json"
+$SummaryText = [System.IO.File]::ReadAllText($SummaryPath, [System.Text.Encoding]::UTF8)
+$Summary = $SummaryText | ConvertFrom-Json
+if (-not $Summary.etw.sessionStarted -or -not $Summary.etw.consumerStarted) {
+    Write-PackageDiagnostics -Directory $RunDirectory.FullName
+    throw "成品包 ETW 会话没有成功启动：startStatus=$($Summary.etw.startStatus) openStatus=$($Summary.etw.openStatus)"
 }
 
 $ArchivePath = Join-Path $DiagnosticsRoot ("storpulse-diagnostics-{0}.zip" -f $CollectorResult.runId)

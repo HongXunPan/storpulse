@@ -33,7 +33,7 @@ Windows Server、早期 Windows 10 和 Windows 11 也可以返回探索性日志
    - `storpulse-windows-probe.exe`
    - `package-manifest.json`
    - `SHA256SUMS.txt`
-   - `scripts/collect.ps1` 与 `scripts/launch-admin.ps1`
+   - `scripts/collect.ps1`、`scripts/invoke-probe.ps1` 与 `scripts/launch-admin.ps1`
    - 两个中文 `.cmd` 入口
 4. 诊断脚本会在运行前比较 EXE 的 SHA-256；不匹配时不会启动探针。
 

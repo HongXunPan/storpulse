@@ -6,7 +6,8 @@ mod workload;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use windows_sys::Win32::Foundation::{
-    ERROR_ACCESS_DENIED, ERROR_ALREADY_EXISTS, ERROR_INVALID_HANDLE, GetLastError,
+    ERROR_ACCESS_DENIED, ERROR_ALREADY_EXISTS, ERROR_INVALID_HANDLE, ERROR_INVALID_PARAMETER,
+    GetLastError,
 };
 
 use crate::model::{
@@ -298,6 +299,7 @@ fn error_category(code: u32) -> &'static str {
         ERROR_ACCESS_DENIED => "access_denied",
         ERROR_ALREADY_EXISTS => "session_conflict",
         ERROR_INVALID_HANDLE => "invalid_handle",
+        ERROR_INVALID_PARAMETER => "invalid_parameter",
         1460 => "timeout",
         _ => "native_error",
     }

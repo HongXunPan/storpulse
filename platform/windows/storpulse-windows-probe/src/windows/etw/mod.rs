@@ -12,7 +12,7 @@ use windows_sys::Win32::System::Diagnostics::Etw::{
     EVENT_TRACE_FLAG_THREAD, EVENT_TRACE_LOGFILEW, EVENT_TRACE_PROPERTIES,
     EVENT_TRACE_REAL_TIME_MODE, EVENT_TRACE_SYSTEM_LOGGER_MODE, OpenTraceW,
     PROCESS_TRACE_MODE_EVENT_RECORD, PROCESS_TRACE_MODE_REAL_TIME, ProcessTrace, StartTraceW,
-    SystemTraceControlGuid, WNODE_FLAG_TRACED_GUID,
+    WNODE_FLAG_TRACED_GUID,
 };
 
 use crate::model::EtwEventReport;
@@ -37,7 +37,6 @@ impl TracePropertiesBuffer {
         let copied = session_name.len().min(value.logger_name.len());
         value.logger_name[..copied].copy_from_slice(&session_name[..copied]);
         value.properties.Wnode.BufferSize = size_of::<Self>() as u32;
-        value.properties.Wnode.Guid = SystemTraceControlGuid;
         value.properties.Wnode.ClientContext = 1;
         value.properties.Wnode.Flags = WNODE_FLAG_TRACED_GUID;
         value.properties.BufferSize = 64;
@@ -51,6 +50,30 @@ impl TracePropertiesBuffer {
             | EVENT_TRACE_FLAG_THREAD;
         value.properties.LoggerNameOffset = offset_of!(Self, logger_name) as u32;
         value
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn custom_system_logger_does_not_reuse_legacy_kernel_guid() {
+        let session_name: Vec<u16> = "StorPulse.Stage0.Test"
+            .encode_utf16()
+            .chain(std::iter::once(0))
+            .collect();
+        let properties = TracePropertiesBuffer::new(&session_name);
+        let guid = properties.properties.Wnode.Guid;
+
+        assert_eq!(guid.data1, 0);
+        assert_eq!(guid.data2, 0);
+        assert_eq!(guid.data3, 0);
+        assert_eq!(guid.data4, [0; 8]);
+        assert_ne!(
+            properties.properties.LogFileMode & EVENT_TRACE_SYSTEM_LOGGER_MODE,
+            0
+        );
     }
 }
 

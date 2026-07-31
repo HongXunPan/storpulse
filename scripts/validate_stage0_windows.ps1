@@ -5,6 +5,18 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+function Write-ProbeDiagnostics {
+    param([Parameter(Mandatory = $true)] [string]$Directory)
+
+    foreach ($FileName in @("summary.json", "errors.json", "timeline.ndjson")) {
+        $Path = Join-Path $Directory $FileName
+        if (Test-Path -LiteralPath $Path -PathType Leaf) {
+            Write-Host "===== $FileName ====="
+            Write-Host ([System.IO.File]::ReadAllText($Path, [System.Text.Encoding]::UTF8))
+        }
+    }
+}
+
 $Root = Split-Path -Parent $PSScriptRoot
 $TemporaryRoot = Join-Path $Root ".codex-tmp/windows-stage0-ci"
 $ReportDirectory = Join-Path $TemporaryRoot "probe-report"
@@ -25,6 +37,7 @@ try {
     $ProbePath = Join-Path $env:CARGO_TARGET_DIR "$Target/debug/storpulse-windows-probe.exe"
     & $ProbePath --output $ReportDirectory --duration-seconds 8
     if ($LASTEXITCODE -ne 0) {
+        Write-ProbeDiagnostics -Directory $ReportDirectory
         throw "Windows 阶段 0 探针冒烟失败，退出码：$LASTEXITCODE"
     }
 
@@ -41,6 +54,10 @@ try {
     }
     if ($Summary.environment.architecture -ne "x86_64") {
         throw "Windows 阶段 0 探针不是 x64 构建"
+    }
+    if (-not $Summary.etw.sessionStarted -or -not $Summary.etw.consumerStarted) {
+        Write-ProbeDiagnostics -Directory $ReportDirectory
+        throw "Windows 阶段 0 ETW 会话没有成功启动：startStatus=$($Summary.etw.startStatus) openStatus=$($Summary.etw.openStatus)"
     }
     if ($SummaryText -match 'userName|commandLine|filePath|fileContent|processName') {
         throw "Windows 阶段 0 报告出现禁止持久化的字段"
