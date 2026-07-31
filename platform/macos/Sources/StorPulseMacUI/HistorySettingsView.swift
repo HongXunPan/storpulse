@@ -36,7 +36,7 @@ public struct HistorySettingsView: View {
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("此操作只删除 StorPulse 的分钟摘要、活动和观察会话，不影响其他应用。")
+            Text("此操作只删除 StorPulse 的分钟摘要、活动和区间记录，不影响其他应用。")
         }
     }
 
@@ -84,7 +84,7 @@ public struct HistorySettingsView: View {
         Section("本机数据") {
             LabeledContent("分钟摘要", value: "\(model.counts.minuteBuckets)")
             LabeledContent("已结束活动", value: "\(model.counts.activities)")
-            LabeledContent("观察会话", value: "\(model.counts.observationSessions)")
+            LabeledContent("区间记录", value: "\(model.counts.observationSessions)")
             HStack {
                 Button("导出隐私摘要") {
                     Task { await model.exportHistory() }

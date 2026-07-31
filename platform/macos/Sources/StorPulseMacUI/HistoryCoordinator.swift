@@ -28,7 +28,7 @@ public actor HistoryCoordinator: RealtimeSnapshotObserver {
     private var store: SQLiteHistoryStore?
     private var accumulator = MinuteBucketAccumulator()
     private var pendingActivities: [ActivitySummary] = []
-    private var pendingSessions: [ObservationSession] = []
+    private var pendingSessions: [ObservationRecord] = []
     private var lastFlushAt: Date?
     private var lastReminderAt: [String: Date] = [:]
 
@@ -115,11 +115,25 @@ public actor HistoryCoordinator: RealtimeSnapshotObserver {
         }
     }
 
-    public func observationSessionEnded(_ session: ObservationSession) async {
+    public func observationRecordEnded(_ record: ObservationRecord) async {
         if settings.historyEnabled {
-            pendingSessions.append(session)
+            pendingSessions.append(record)
             try? flush(includeCurrentMinute: true)
         }
+    }
+
+    public func observationRecordRenamed(
+        sessionID: String,
+        name: String
+    ) async {
+        guard settings.historyEnabled else { return }
+        pendingSessions = pendingSessions.map { record in
+            record.id == sessionID ? record.renamed(to: name) : record
+        }
+        try? store?.renameObservationRecord(
+            sessionID: sessionID,
+            name: name
+        )
     }
 
     public func flushForTermination() throws {
@@ -138,6 +152,26 @@ public actor HistoryCoordinator: RealtimeSnapshotObserver {
     public func counts() throws -> HistoryCounts {
         guard let store else { return .empty }
         return try store.counts()
+    }
+
+    public func observationRecords() throws -> [ObservationRecordSummary] {
+        guard let store else { return [] }
+        return try store.observationRecords()
+    }
+
+    public func renameObservationRecord(
+        sessionID: String,
+        name: String
+    ) throws {
+        guard let store else { throw HistoryCoordinatorError.historyDisabled }
+        let normalized = ObservationRecord.normalizedName(
+            name,
+            fallback: "未命名记录"
+        )
+        try store.renameObservationRecord(
+            sessionID: sessionID,
+            name: normalized
+        )
     }
 
     public func exportJSON() throws -> Data {

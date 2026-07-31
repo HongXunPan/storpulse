@@ -3,6 +3,7 @@ import SwiftUI
 
 enum StorPulseWorkspaceModule: String, CaseIterable, Hashable, Identifiable {
     case realtime
+    case recordings
     case historyAndReminders
 
     var id: String { rawValue }
@@ -10,6 +11,7 @@ enum StorPulseWorkspaceModule: String, CaseIterable, Hashable, Identifiable {
     var title: String {
         switch self {
         case .realtime: "实时观察"
+        case .recordings: "区间记录"
         case .historyAndReminders: "历史与提醒"
         }
     }
@@ -17,6 +19,7 @@ enum StorPulseWorkspaceModule: String, CaseIterable, Hashable, Identifiable {
     var systemImage: String {
         switch self {
         case .realtime: "waveform.path.ecg"
+        case .recordings: "record.circle"
         case .historyAndReminders: "clock.arrow.circlepath"
         }
     }
@@ -67,8 +70,8 @@ struct StorPulseWorkspaceView: View {
                 .navigationTitle(model.currentModule.title)
         }
         .task(id: model.currentModule) {
-            if model.currentModule == .historyAndReminders {
-                await historyViewModel.refreshCounts()
+            if model.currentModule != .realtime {
+                await historyViewModel.refreshHistory()
             }
         }
     }
@@ -77,7 +80,15 @@ struct StorPulseWorkspaceView: View {
     private var detail: some View {
         switch model.currentModule {
         case .realtime:
-            DashboardView(monitor: monitor)
+            DashboardView(
+                monitor: monitor,
+                historyViewModel: historyViewModel
+            )
+        case .recordings:
+            ObservationRecordsView(
+                monitor: monitor,
+                historyViewModel: historyViewModel
+            )
         case .historyAndReminders:
             HistorySettingsView(model: historyViewModel)
         }

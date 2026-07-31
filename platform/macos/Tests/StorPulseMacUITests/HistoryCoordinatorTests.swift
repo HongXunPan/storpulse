@@ -92,7 +92,15 @@ func privacySafeExportAndSessionFlush() async throws {
     await coordinator.realtimeSnapshotProduced(
         historySnapshot(capturedAt: "2026-07-30T10:04:59Z", runReadBytes: 1_000, runWriteBytes: 2_000)
     )
-    await coordinator.observationSessionEnded(historySession())
+    let record = ObservationRecord(
+        name: "私人下载任务",
+        session: historySession()
+    )
+    await coordinator.observationRecordEnded(record)
+    await coordinator.observationRecordRenamed(
+        sessionID: record.id,
+        name: "私人下载任务（已完成）"
+    )
 
     let data = try await coordinator.exportJSON()
     let text = String(decoding: data, as: UTF8.self)
@@ -102,6 +110,51 @@ func privacySafeExportAndSessionFlush() async throws {
     #expect(!text.localizedCaseInsensitiveContains("/Users/"))
     #expect(!text.localizedCaseInsensitiveContains("command"))
     #expect(!text.localizedCaseInsensitiveContains("username"))
+    #expect(!text.contains("私人下载任务"))
+
+    let records = try await coordinator.observationRecords()
+    #expect(records.first?.name == "私人下载任务（已完成）")
+}
+
+@Test("旧版区间记录表自动补齐名称列")
+func observationRecordNameColumnMigrates() throws {
+    let databaseURL = historyTestDatabaseURL("record-name-migration")
+    do {
+        let store = try SQLiteHistoryStore(url: databaseURL)
+        try store.execute("DROP TABLE observation_sessions;")
+        try store.execute("""
+        CREATE TABLE observation_sessions (
+            session_id TEXT PRIMARY KEY,
+            started_at TEXT NOT NULL,
+            ended_at TEXT NOT NULL,
+            duration_ms INTEGER NOT NULL,
+            read_bytes INTEGER NOT NULL,
+            write_bytes INTEGER NOT NULL,
+            peak_read REAL NOT NULL,
+            peak_write REAL NOT NULL,
+            completeness TEXT NOT NULL,
+            top_application_ids_json TEXT NOT NULL
+        );
+        INSERT INTO observation_sessions VALUES (
+            'legacy-1', '2026-07-30T10:00:00Z', '2026-07-30T10:01:00Z',
+            60000, 100, 200, 10, 20, 'complete', '[]'
+        );
+        """)
+    }
+
+    let migratedStore = try SQLiteHistoryStore(url: databaseURL)
+    let records = try migratedStore.observationRecords()
+    #expect(records.count == 1)
+    #expect(records.first?.name == "未命名记录")
+
+    try migratedStore.renameObservationRecord(
+        sessionID: "legacy-1",
+        name: "迁移后的记录"
+    )
+    #expect(
+        try migratedStore.observationRecords().first?.name
+            == "迁移后的记录"
+    )
 }
 
 @Test("保留期清理和手动清理删除摘要记录")

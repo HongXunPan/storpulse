@@ -115,7 +115,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     private func refreshObservationItem() {
         let isObserving = monitor.snapshot?.activeObservationSession != nil
-        assembly.observationItem.title = isObserving ? "停止观察" : "开始观察"
+        assembly.observationItem.title = isObserving ? "结束记录…" : "开始记录"
         assembly.observationItem.image = NSImage(
             systemSymbolName: isObserving ? "stop.circle" : "record.circle",
             accessibilityDescription: assembly.observationItem.title
@@ -161,7 +161,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         Task { [weak self] in
             guard let self else { return }
             if isObserving {
-                await monitor.stopObservation()
+                if await monitor.stopObservation() != nil {
+                    dismissStatusMenuForWindowPresentation()
+                    actions.showModule(.realtime)
+                }
             } else {
                 await monitor.startObservation()
             }

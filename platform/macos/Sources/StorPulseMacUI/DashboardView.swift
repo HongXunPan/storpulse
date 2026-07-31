@@ -2,14 +2,19 @@ import SwiftUI
 
 public struct DashboardView: View {
     @ObservedObject private var monitor: RealtimeMonitor
+    @ObservedObject private var historyViewModel: HistoryViewModel
     @State private var sortOrder = ApplicationSortOrder.defaultOrder
     @State private var searchText = ""
     @State private var selectedApplicationID: RealtimeApplication.ID?
     @State private var inspectedDisplayName = "进程详情"
     @State private var inspectorPresented = false
 
-    public init(monitor: RealtimeMonitor) {
+    public init(
+        monitor: RealtimeMonitor,
+        historyViewModel: HistoryViewModel
+    ) {
         self.monitor = monitor
+        self.historyViewModel = historyViewModel
     }
 
     public var body: some View {
@@ -48,6 +53,25 @@ public struct DashboardView: View {
             ToolbarItemGroup(placement: .primaryAction) {
                 observationButton
                 inspectorButton
+            }
+        }
+        .sheet(isPresented: completedObservationRecordPresented) {
+            if let record = monitor.completedObservationRecord {
+                NavigationStack {
+                    ObservationSessionResultView(
+                        record: record.summary,
+                        historyEnabled: historyViewModel.settings.historyEnabled,
+                        onRename: { name in
+                            Task {
+                                _ = await monitor.renameObservationRecord(
+                                    sessionID: record.id,
+                                    name: name
+                                )
+                                await historyViewModel.refreshHistory()
+                            }
+                        }
+                    )
+                }
             }
         }
         .searchable(
@@ -146,9 +170,14 @@ public struct DashboardView: View {
     private var observationSummary: some View {
         if let session = monitor.snapshot?.activeObservationSession {
             VStack(alignment: .leading, spacing: 3) {
-                Text("观察会话")
+                Text("区间记录")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if let name = monitor.activeObservationName {
+                    Text(name)
+                        .font(.subheadline)
+                        .lineLimit(1)
+                }
                 Text(IOPresentation.duration(milliseconds: session.durationMilliseconds))
                     .font(.headline.monospacedDigit())
                 Text(
@@ -184,20 +213,31 @@ public struct DashboardView: View {
                 Button {
                     Task { await monitor.startObservation() }
                 } label: {
-                    Label("开始观察", systemImage: "record.circle")
+                    Label("开始记录", systemImage: "record.circle")
                 }
             } else {
                 Button {
                     Task { await monitor.stopObservation() }
                 } label: {
-                    Label("停止观察", systemImage: "stop.circle")
+                    Label("结束记录", systemImage: "stop.circle")
                 }
             }
         }
         .help(
             monitor.snapshot?.activeObservationSession == nil
-                ? "开始记录本次观察会话"
-                : "停止并保存本次观察会话摘要"
+                ? "开始记录一个手动统计区间"
+                : "结束区间并查看本次结果"
+        )
+    }
+
+    private var completedObservationRecordPresented: Binding<Bool> {
+        Binding(
+            get: { monitor.completedObservationRecord != nil },
+            set: { isPresented in
+                if !isPresented {
+                    monitor.dismissCompletedObservationRecord()
+                }
+            }
         )
     }
 

@@ -44,6 +44,7 @@ final class SQLiteHistoryStore {
             try execute("PRAGMA journal_mode=WAL;")
             try execute("PRAGMA synchronous=NORMAL;")
             try execute(Self.schema)
+            try migrateObservationSessionSchema()
         } catch {
             sqlite3_close(handle)
             throw error
@@ -152,7 +153,8 @@ final class SQLiteHistoryStore {
         try stepDone(statement)
     }
 
-    private func write(_ session: ObservationSession) throws {
+    private func write(_ record: ObservationRecord) throws {
+        let session = record.session
         let topIDs = session.topApplications.map(\.applicationID)
         let topJSON = String(
             data: try JSONEncoder().encode(topIDs),
@@ -160,21 +162,22 @@ final class SQLiteHistoryStore {
         ) ?? "[]"
         let statement = try prepare("""
         INSERT OR REPLACE INTO observation_sessions (
-            session_id, started_at, ended_at, duration_ms, read_bytes, write_bytes,
+            session_id, name, started_at, ended_at, duration_ms, read_bytes, write_bytes,
             peak_read, peak_write, completeness, top_application_ids_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
         """)
         defer { sqlite3_finalize(statement) }
         try bind(session.sessionID, to: 1, in: statement)
-        try bind(session.startedAt, to: 2, in: statement)
-        try bind(session.endedAt, to: 3, in: statement)
-        try bind(session.durationMilliseconds, to: 4, in: statement)
-        try bind(session.readBytes, to: 5, in: statement)
-        try bind(session.writeBytes, to: 6, in: statement)
-        try bind(session.peak.readBytesPerSecond, to: 7, in: statement)
-        try bind(session.peak.writeBytesPerSecond, to: 8, in: statement)
-        try bind(session.completeness, to: 9, in: statement)
-        try bind(topJSON, to: 10, in: statement)
+        try bind(record.name, to: 2, in: statement)
+        try bind(session.startedAt, to: 3, in: statement)
+        try bind(session.endedAt, to: 4, in: statement)
+        try bind(session.durationMilliseconds, to: 5, in: statement)
+        try bind(session.readBytes, to: 6, in: statement)
+        try bind(session.writeBytes, to: 7, in: statement)
+        try bind(session.peak.readBytesPerSecond, to: 8, in: statement)
+        try bind(session.peak.writeBytesPerSecond, to: 9, in: statement)
+        try bind(session.completeness, to: 10, in: statement)
+        try bind(topJSON, to: 11, in: statement)
         try stepDone(statement)
     }
 
@@ -272,6 +275,7 @@ final class SQLiteHistoryStore {
     );
     CREATE TABLE IF NOT EXISTS observation_sessions (
         session_id TEXT PRIMARY KEY,
+        name TEXT NOT NULL DEFAULT '',
         started_at TEXT NOT NULL,
         ended_at TEXT NOT NULL,
         duration_ms INTEGER NOT NULL,

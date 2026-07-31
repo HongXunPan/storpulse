@@ -7,6 +7,7 @@ import UniformTypeIdentifiers
 public final class HistoryViewModel: ObservableObject {
     @Published public var settings = HistorySettings()
     @Published public private(set) var counts = HistoryCounts.empty
+    @Published public private(set) var observationRecords: [ObservationRecordSummary] = []
     @Published public private(set) var errorMessage: String?
     @Published public private(set) var statusMessage: String?
     @Published public private(set) var isWorking = false
@@ -20,7 +21,7 @@ public final class HistoryViewModel: ObservableObject {
     public func bootstrap() async {
         await coordinator.bootstrap()
         settings = await coordinator.currentSettings()
-        await refreshCounts()
+        await refreshHistory()
     }
 
     public func save() async {
@@ -31,7 +32,7 @@ public final class HistoryViewModel: ObservableObject {
             settings = await coordinator.currentSettings()
             errorMessage = nil
             statusMessage = "设置已保存"
-            await refreshCounts()
+            await refreshHistory()
         } catch {
             errorMessage = error.localizedDescription
             statusMessage = nil
@@ -44,6 +45,7 @@ public final class HistoryViewModel: ObservableObject {
         do {
             try await coordinator.clearHistory()
             counts = .empty
+            observationRecords = []
             errorMessage = nil
             statusMessage = "本机历史已清理"
         } catch {
@@ -72,8 +74,29 @@ public final class HistoryViewModel: ObservableObject {
     }
 
     public func refreshCounts() async {
+        await refreshHistory()
+    }
+
+    public func refreshHistory() async {
         do {
             counts = try await coordinator.counts()
+            observationRecords = try await coordinator.observationRecords()
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    public func renameObservationRecord(
+        sessionID: String,
+        name: String
+    ) async {
+        do {
+            try await coordinator.renameObservationRecord(
+                sessionID: sessionID,
+                name: name
+            )
+            await refreshHistory()
         } catch {
             errorMessage = error.localizedDescription
         }

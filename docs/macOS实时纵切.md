@@ -46,10 +46,11 @@ Swift 通过 `StorPulseFFIBridge` 动态装载 Rust `cdylib`，再使用版本�
 - 状态栏使用 AppKit 原生 `NSMenu`：只读摘要可由 `NSMenuItem.view` 托管，Top 应用使用真实 `NSMenuItem.submenu`，命令使用标准菜单项。
 - 点击状态栏图标不激活应用；进入主窗口时先结束菜单跟踪，再激活应用并前置已复用的窗口。
 - 单一普通主窗口通过原生表格列头提供单列升降序，通过工具栏搜索框按应用名即时过滤，并承载进程检查器、观察会话以及历史与提醒；不把复杂工作流塞进 Popover、Panel 或自定义浮窗。
-- 观察会话必须由用户主动开始和停止；历史关闭时不落盘，启用后的摘要持久化遵循[低写入历史与导出](低写入历史与导出.md)。
+- 界面将手动观察会话称为“区间记录”：开始时自动生成包含本地时间的默认名称，不额外弹出命名确认；结束后使用主窗口原生 Sheet 展示结果并允许直接改名。
+- 主窗口侧栏提供“区间记录”入口。本次运行的已结束记录始终保存在内存中；历史关闭时退出即清除、不创建数据库，启用后的摘要持久化遵循[低写入历史与导出](低写入历史与导出.md)。
 
 ## 6. 验证层级
 
-已通过 Rust 格式、check、test、Clippy，17 项 Swift Package 测试，以及 Swift → C 桥 → Rust 的往返测试。Swift 测试同时编译并链接 `storpulse-mac`，定向测试确认状态栏采用原生菜单与真实子菜单、主窗口模块复用同一选择模型。当前本机 Xcode 不把裸 Swift Package 目录识别为 project、workspace 或 package，`xcodebuild -list` 因而退出 66；未重复执行同义命令。
+已通过 Rust 格式、check、test、Clippy，28 项 Swift Package 测试，以及 Swift → C 桥 → Rust 的往返测试。Swift 测试同时编译并链接 `storpulse-mac`，定向测试确认状态栏采用原生菜单与真实子菜单、主窗口模块复用同一选择模型。当前本机 Xcode 不把裸 Swift Package 目录识别为 project、workspace 或 package，`xcodebuild -list` 因而退出 66；未重复执行同义命令。
 
 上述结果证明源码与跨语言契约可由测试编译并运行，不等于应用已执行正式 build、启动、状态栏交互或人工视觉验收。

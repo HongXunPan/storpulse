@@ -31,6 +31,7 @@ func statusMenuUsesNativeStructure() throws {
     #expect(summaryItem.submenu == nil)
     #expect(topApplicationsItem.view == nil)
     #expect(topApplicationsItem.submenu != nil)
+    #expect(assembly.observationItem.title == "开始记录")
     #expect(realtimeItem.view == nil)
     #expect(realtimeItem.keyEquivalent == "o")
     #expect(realtimeItem.keyEquivalentModifierMask == [.command])
@@ -44,6 +45,8 @@ func workspaceModelReusesSelection() {
     let model = StorPulseWorkspaceModel()
 
     #expect(model.currentModule == .realtime)
+    model.select(.recordings)
+    #expect(model.currentModule == .recordings)
     model.select(.historyAndReminders)
     #expect(model.currentModule == .historyAndReminders)
     model.selectedModule = nil

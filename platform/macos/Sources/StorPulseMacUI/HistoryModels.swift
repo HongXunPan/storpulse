@@ -104,7 +104,7 @@ public struct HistoryCounts: Equatable, Sendable {
 struct HistoryWriteBatch: Sendable {
     var minuteBuckets: [MinuteBucketRecord] = []
     var activities: [ActivitySummary] = []
-    var observationSessions: [ObservationSession] = []
+    var observationSessions: [ObservationRecord] = []
     var settings: HistorySettings?
 
     var isEmpty: Bool {

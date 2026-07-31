@@ -20,6 +20,61 @@ extension SQLiteHistoryStore {
         )
     }
 
+    func observationRecords(limit: Int = 200) throws -> [ObservationRecordSummary] {
+        let boundedLimit = max(1, min(limit, 500))
+        let statement = try prepare("""
+        SELECT session_id, name, started_at, ended_at, duration_ms, read_bytes,
+               write_bytes, peak_read, peak_write, completeness,
+               top_application_ids_json
+        FROM observation_sessions
+        ORDER BY ended_at DESC, session_id DESC
+        LIMIT \(boundedLimit);
+        """)
+        defer { sqlite3_finalize(statement) }
+
+        var records: [ObservationRecordSummary] = []
+        while sqlite3_step(statement) == SQLITE_ROW {
+            let topData = Data(text(statement, 10).utf8)
+            let topIDs = (try? JSONDecoder().decode([String].self, from: topData)) ?? []
+            let storedName = text(statement, 1)
+            records.append(
+                ObservationRecordSummary(
+                    sessionID: text(statement, 0),
+                    name: storedName.isEmpty ? "未命名记录" : storedName,
+                    startedAt: text(statement, 2),
+                    endedAt: text(statement, 3),
+                    durationMilliseconds: unsigned(statement, 4),
+                    readBytes: unsigned(statement, 5),
+                    writeBytes: unsigned(statement, 6),
+                    peak: IORate(
+                        readBytesPerSecond: sqlite3_column_double(statement, 7),
+                        writeBytesPerSecond: sqlite3_column_double(statement, 8)
+                    ),
+                    completeness: text(statement, 9),
+                    topApplications: topIDs.map {
+                        ObservationRecordApplicationSummary(
+                            applicationID: $0,
+                            displayName: $0,
+                            readBytes: nil,
+                            writeBytes: nil
+                        )
+                    }
+                )
+            )
+        }
+        return records
+    }
+
+    func renameObservationRecord(sessionID: String, name: String) throws {
+        let statement = try prepare("""
+        UPDATE observation_sessions SET name = ? WHERE session_id = ?;
+        """)
+        defer { sqlite3_finalize(statement) }
+        try bind(name, to: 1, in: statement)
+        try bind(sessionID, to: 2, in: statement)
+        try stepDone(statement)
+    }
+
     private func count(table: String) throws -> Int {
         let statement = try prepare("SELECT COUNT(*) FROM \(table);")
         defer { sqlite3_finalize(statement) }

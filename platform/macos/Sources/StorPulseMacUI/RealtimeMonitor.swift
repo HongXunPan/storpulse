@@ -24,7 +24,8 @@ public enum SamplingState: Equatable, Sendable {
 
 public protocol RealtimeSnapshotObserver: Sendable {
     func realtimeSnapshotProduced(_ snapshot: RealtimeSnapshot) async
-    func observationSessionEnded(_ session: ObservationSession) async
+    func observationRecordEnded(_ record: ObservationRecord) async
+    func observationRecordRenamed(sessionID: String, name: String) async
 }
 
 @MainActor
@@ -33,6 +34,9 @@ public final class RealtimeMonitor: ObservableObject {
         var snapshot: RealtimeSnapshot?
         var samplingState: SamplingState = .starting
         var lastErrorMessage: String?
+        var activeObservationName: String?
+        var completedObservationRecord: ObservationRecord?
+        var observationRecords: [ObservationRecord] = []
     }
 
     @Published private var presentation = Presentation()
@@ -70,6 +74,18 @@ public final class RealtimeMonitor: ObservableObject {
 
     public var lastErrorMessage: String? {
         presentation.lastErrorMessage
+    }
+
+    public var activeObservationName: String? {
+        presentation.activeObservationName
+    }
+
+    public var completedObservationRecord: ObservationRecord? {
+        presentation.completedObservationRecord
+    }
+
+    public var observationRecords: [ObservationRecord] {
+        presentation.observationRecords
     }
 
     public var ratesAreTrustworthy: Bool {
@@ -131,16 +147,26 @@ public final class RealtimeMonitor: ObservableObject {
 
     public func startObservation() async {
         let now = Date()
+        let name = ObservationRecord.defaultName(at: now)
         let command = EngineCommand.startObservation(
             sessionID: UUID().uuidString.lowercased(),
             startedAt: Self.iso8601(now),
             monotonicNanoseconds: DispatchTime.now().uptimeNanoseconds
         )
-        await execute(command)
+        do {
+            _ = try await engine.execute(command)
+            updatePresentation {
+                $0.activeObservationName = name
+                $0.lastErrorMessage = nil
+            }
+            await refreshSnapshot()
+        } catch {
+            updatePresentation { $0.lastErrorMessage = error.localizedDescription }
+        }
     }
 
     @discardableResult
-    public func stopObservation() async -> ObservationSession? {
+    public func stopObservation() async -> ObservationRecord? {
         let command = EngineCommand.stopObservation(
             endedAt: Self.iso8601(Date()),
             monotonicNanoseconds: DispatchTime.now().uptimeNanoseconds
@@ -148,11 +174,23 @@ public final class RealtimeMonitor: ObservableObject {
         do {
             let response = try await engine.execute(command)
             if case let .observationStopped(session) = response {
+                let record = ObservationRecord(
+                    name: presentation.activeObservationName ?? "",
+                    session: session
+                )
+                updatePresentation {
+                    $0.activeObservationName = nil
+                    $0.completedObservationRecord = record
+                    $0.observationRecords = Self.inserting(
+                        record,
+                        into: $0.observationRecords
+                    )
+                }
                 for observer in observers {
-                    await observer.observationSessionEnded(session)
+                    await observer.observationRecordEnded(record)
                 }
                 await refreshSnapshot()
-                return session
+                return record
             }
         } catch {
             updatePresentation { $0.lastErrorMessage = error.localizedDescription }
@@ -160,12 +198,37 @@ public final class RealtimeMonitor: ObservableObject {
         return nil
     }
 
-    private func execute(_ command: EngineCommand) async {
-        do {
-            _ = try await engine.execute(command)
-            await refreshSnapshot()
-        } catch {
-            updatePresentation { $0.lastErrorMessage = error.localizedDescription }
+    public func renameObservationRecord(
+        sessionID: String,
+        name: String
+    ) async -> Bool {
+        guard let current = presentation.observationRecords.first(where: {
+            $0.id == sessionID
+        }) else {
+            return false
+        }
+        let renamed = current.renamed(to: name)
+        guard renamed != current else { return true }
+        updatePresentation {
+            $0.observationRecords = $0.observationRecords.map {
+                $0.id == sessionID ? renamed : $0
+            }
+            if $0.completedObservationRecord?.id == sessionID {
+                $0.completedObservationRecord = renamed
+            }
+        }
+        for observer in observers {
+            await observer.observationRecordRenamed(
+                sessionID: sessionID,
+                name: renamed.name
+            )
+        }
+        return true
+    }
+
+    public func dismissCompletedObservationRecord() {
+        updatePresentation {
+            $0.completedObservationRecord = nil
         }
     }
 
@@ -189,5 +252,15 @@ public final class RealtimeMonitor: ObservableObject {
 
     private static func iso8601(_ date: Date) -> String {
         ISO8601DateFormatter().string(from: date)
+    }
+
+    private static func inserting(
+        _ record: ObservationRecord,
+        into records: [ObservationRecord]
+    ) -> [ObservationRecord] {
+        Array(
+            ([record] + records.filter { $0.id != record.id })
+                .prefix(100)
+        )
     }
 }

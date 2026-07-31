@@ -45,7 +45,7 @@ struct StatusMenuFactory {
         menu.addItem(topApplicationsItem)
 
         let observationItem = makeItem(
-            title: "开始观察",
+            title: "开始记录",
             symbol: "record.circle",
             action: toggleObservationAction,
             target: target

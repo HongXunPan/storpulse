@@ -52,8 +52,11 @@ public final class StorPulseApplicationDelegate: NSObject, NSApplicationDelegate
 
     public func applicationShouldTerminate(_: NSApplication) -> NSApplication.TerminateReply {
         guard terminationTask == nil else { return .terminateLater }
-        monitor.stop()
-        terminationTask = Task { [historyCoordinator] in
+        terminationTask = Task { [monitor, historyCoordinator] in
+            if monitor.snapshot?.activeObservationSession != nil {
+                _ = await monitor.stopObservation()
+            }
+            monitor.stop()
             try? await historyCoordinator.flushForTermination()
             NSApp.reply(toApplicationShouldTerminate: true)
         }
