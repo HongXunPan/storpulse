@@ -177,8 +177,6 @@ cat >"${APP_BUNDLE}/Contents/Info.plist" <<EOF
     <string>1</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
-    <key>LSUIElement</key>
-    <true/>
     <key>NSHighResolutionCapable</key>
     <true/>
 </dict>
@@ -201,7 +199,7 @@ if [[ "${PREPARE_ONLY}" -eq 1 ]]; then
 fi
 
 echo "启动 StorPulse macOS Debug"
-echo "退出方式：从 StorPulse 状态栏 Popover 点击“退出”。"
+echo "退出方式：从 StorPulse 状态栏原生菜单点击“退出 StorPulse”。"
 
 if [[ "${USE_DEBUGGER}" -eq 1 ]]; then
   exec env \

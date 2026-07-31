@@ -2,111 +2,94 @@ import SwiftUI
 
 public struct DashboardView: View {
     @ObservedObject private var monitor: RealtimeMonitor
-    private let openHistory: @MainActor () -> Void
     @State private var sort: ApplicationSort = .current
 
-    public init(
-        monitor: RealtimeMonitor,
-        openHistory: @escaping @MainActor () -> Void = {}
-    ) {
+    public init(monitor: RealtimeMonitor) {
         self.monitor = monitor
-        self.openHistory = openHistory
     }
 
     public var body: some View {
         VStack(spacing: 0) {
-            header
-            Divider()
             summary
-            Divider()
             applicationList
         }
-        .frame(minWidth: 880, minHeight: 560)
+        .frame(minWidth: 700, minHeight: 520)
         .background(Color(nsColor: .windowBackgroundColor))
-    }
-
-    private var header: some View {
-        HStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("实时观察")
-                    .font(.title2.weight(.semibold))
-                TrustBadge(
-                    state: monitor.samplingState,
-                    completeness: monitor.snapshot?.completeness
-                )
-            }
-            Spacer()
-            Button {
-                openHistory()
-            } label: {
-                Label("历史与提醒", systemImage: "clock.arrow.circlepath")
-            }
-            .controlSize(.large)
-            observationButton
-            Picker("排序", selection: $sort) {
-                ForEach(ApplicationSort.allCases) { item in
-                    Text(item.rawValue).tag(item)
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                observationButton
+                Picker("排序", selection: $sort) {
+                    ForEach(ApplicationSort.allCases) { item in
+                        Text(item.rawValue).tag(item)
+                    }
                 }
+                .pickerStyle(.menu)
+                .frame(width: 150)
             }
-            .pickerStyle(.menu)
-            .frame(width: 150)
         }
-        .padding(18)
     }
 
     private var summary: some View {
-        HStack(spacing: 28) {
-            summaryMetric(
-                title: "设备读取",
-                value: trustedDeviceRate?.readBytesPerSecond,
-                symbol: "arrow.down.circle.fill"
-            )
-            summaryMetric(
-                title: "设备写入",
-                value: trustedDeviceRate?.writeBytesPerSecond,
-                symbol: "arrow.up.circle.fill"
-            )
-            if let session = monitor.snapshot?.activeObservationSession {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("观察会话")
+        GroupBox {
+            HStack(spacing: 28) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("数据状态")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Text(IOPresentation.duration(milliseconds: session.durationMilliseconds))
-                        .font(.system(.title3, design: .monospaced, weight: .semibold))
-                    Text(
-                        "读 \(IOPresentation.bytes(session.readBytes)) · 写 \(IOPresentation.bytes(session.writeBytes))"
+                    TrustBadge(
+                        state: monitor.samplingState,
+                        completeness: monitor.snapshot?.completeness
                     )
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
+                }
+                summaryMetric(
+                    title: "设备读取",
+                    value: trustedDeviceRate?.readBytesPerSecond,
+                    symbol: "arrow.down.circle"
+                )
+                summaryMetric(
+                    title: "设备写入",
+                    value: trustedDeviceRate?.writeBytesPerSecond,
+                    symbol: "arrow.up.circle"
+                )
+                if let session = monitor.snapshot?.activeObservationSession {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("观察会话")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(IOPresentation.duration(milliseconds: session.durationMilliseconds))
+                            .font(.headline.monospacedDigit())
+                        Text(
+                            "读 \(IOPresentation.bytes(session.readBytes)) · 写 \(IOPresentation.bytes(session.writeBytes))"
+                        )
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer()
+                if let message = monitor.lastErrorMessage {
+                    Label(message, systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .lineLimit(2)
+                        .frame(maxWidth: 240, alignment: .trailing)
                 }
             }
-            Spacer()
-            if let message = monitor.lastErrorMessage {
-                Label(message, systemImage: "exclamationmark.triangle")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                    .lineLimit(2)
-                    .frame(maxWidth: 260, alignment: .trailing)
-            }
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 14)
+        .padding([.top, .horizontal])
     }
 
     private var applicationList: some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
-                ForEach(sortedApplications) { application in
-                    ApplicationRowView(
-                        application: application,
-                        processes: processes(for: application),
-                        ratesAreTrustworthy: monitor.ratesAreTrustworthy
-                    )
-                    .padding(.horizontal, 18)
-                    Divider()
-                }
-            }
+        List(sortedApplications) { application in
+            ApplicationRowView(
+                application: application,
+                processes: processes(for: application),
+                ratesAreTrustworthy: monitor.ratesAreTrustworthy
+            )
+            .listRowInsets(
+                EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12)
+            )
         }
+        .listStyle(.inset)
         .overlay {
             if monitor.snapshot == nil {
                 ContentUnavailableView(
@@ -140,8 +123,6 @@ public struct DashboardView: View {
                 }
             }
         }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.large)
     }
 
     private var trustedDeviceRate: IORate? {
@@ -169,9 +150,9 @@ public struct DashboardView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Text(IOPresentation.rate(value))
-                .font(.system(.title2, design: .monospaced, weight: .semibold))
+                .font(.headline.monospacedDigit())
                 .contentTransition(.numericText())
         }
-        .frame(width: 190, alignment: .leading)
+        .frame(width: 170, alignment: .leading)
     }
 }
