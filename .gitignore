@@ -3,6 +3,7 @@
 .build/
 target/
 .codex-tmp/
+/diagnostics/
 DerivedData/
 *.xcuserstate
 xcuserdata/

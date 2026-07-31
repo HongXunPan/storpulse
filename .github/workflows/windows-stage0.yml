@@ -1,0 +1,91 @@
+name: Windows 阶段 0 诊断包
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/**"
+      - "platform/windows/**"
+      - "scripts/windows-stage0/**"
+      - "scripts/package_windows_stage0.ps1"
+      - "scripts/validate_stage0_windows.ps1"
+      - ".github/workflows/windows-stage0.yml"
+  push:
+    branches: [main]
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/**"
+      - "platform/windows/**"
+      - "scripts/windows-stage0/**"
+      - "scripts/package_windows_stage0.ps1"
+      - "scripts/validate_stage0_windows.ps1"
+      - ".github/workflows/windows-stage0.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-diagnostic-package:
+    name: 构建 Windows x64 协作诊断包
+    runs-on: windows-2025
+    timeout-minutes: 30
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_PROFILE_RELEASE_DEBUG: "1"
+      RUSTFLAGS: "-C target-feature=+crt-static"
+
+    steps:
+      - name: 检出源码
+        uses: actions/checkout@v4
+
+      - name: 安装固定 Rust 工具链
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal --component rustfmt,clippy --target x86_64-pc-windows-msvc
+          rustup default 1.97.1
+          rustc --version --verbose
+
+      - name: 执行 Windows 校验与日志冒烟
+        shell: powershell
+        run: ./scripts/validate_stage0_windows.ps1
+
+      - name: 构建发布探针
+        shell: powershell
+        run: cargo build --locked --release --package storpulse-windows-probe --target x86_64-pc-windows-msvc
+
+      - name: 生成主包与符号包
+        shell: powershell
+        run: |
+          ./scripts/package_windows_stage0.ps1 `
+            -BinaryPath ".codex-tmp/cargo-target/x86_64-pc-windows-msvc/release/storpulse-windows-probe.exe" `
+            -PdbPath ".codex-tmp/cargo-target/x86_64-pc-windows-msvc/release/storpulse-windows-probe.pdb" `
+            -OutputDirectory ".codex-tmp/windows-stage0-artifacts" `
+            -CommitSha "${{ github.sha }}"
+
+      - name: 上传 Windows 诊断主包
+        uses: actions/upload-artifact@v4
+        with:
+          name: storpulse-windows-stage0-x64-${{ github.sha }}
+          path: .codex-tmp/windows-stage0-artifacts/storpulse-windows-stage0-x64.zip
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: 上传独立调试符号
+        uses: actions/upload-artifact@v4
+        with:
+          name: storpulse-windows-stage0-symbols-x64-${{ github.sha }}
+          path: .codex-tmp/windows-stage0-artifacts/storpulse-windows-stage0-symbols-x64.zip
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: 上传 CI 日志冒烟结果
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: storpulse-windows-stage0-ci-diagnostics-${{ github.sha }}
+          path: .codex-tmp/windows-stage0-ci/probe-report
+          if-no-files-found: warn
+          retention-days: 7

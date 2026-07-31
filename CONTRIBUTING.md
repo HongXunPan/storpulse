@@ -4,7 +4,8 @@
 
 - macOS 阶段 0：macOS 14 或更高版本、Xcode 26.5 当前 SDK。
 - Rust：由 `rust-toolchain.toml` 固定；当前环境可通过 `rustup run` 调用。
-- Windows 与其他 macOS 架构当前不属于已验证范围。
+- Windows 自动构建：GitHub Actions `windows-2025` runner，只证明 Windows x64 编译、测试、日志结构和打包。
+- Windows 实机：首轮候选为 Windows 10 22H2 x64；Windows 11 正式门禁仍需独立实机验证。
 
 ## 最小验证
 
@@ -17,6 +18,14 @@ bash scripts/validate.sh
 ```bash
 bash scripts/validate_stage0_macos.sh
 ```
+
+Windows runner 校验：
+
+```powershell
+./scripts/validate_stage0_windows.ps1
+```
+
+Windows 协作者只使用 Actions 产物，不需要安装开发环境；操作与日志返回要求见[Windows 阶段 0 协作调试指南](docs/Windows阶段0协作调试指南.md)。
 
 脚本会把缓存、测试负载和报告放在 `.codex-tmp/`，完成后清理负载文件。报告包含宿主环境和聚合指标，不包含文件路径、命令行或用户名。
 
@@ -47,6 +56,8 @@ bash scripts/debug_macos.sh
 - 单元测试：证明数据模型、编码和错误状态稳定。
 - 集成测试：证明 macOS 公共 API 可在当前宿主环境读取。
 - 阶段 0 证据：证明当前 macOS 26.5 Intel 环境的方向、累计量、受限范围和自身开销；不等于 Apple Silicon、旧系统或签名发行已通过。
+- Windows 自动化：证明固定工具链能产出 x64 EXE、PDB、结构化日志与可校验 ZIP；不证明 Windows 10/11 ETW 权限门禁。
+- Windows 协作诊断：Windows 10 结果只作为候选兼容性证据，不能代替真实 Windows 11 标准用户门禁。
 
 ## 禁止事项
 

@@ -46,6 +46,9 @@ if [[ -f "${BUDGET_SCRIPT}" ]]; then
     "${ROOT_DIR}/platform/macos/Sources"
     "${ROOT_DIR}/platform/macos/Tests"
   )
+  if [[ -d "${ROOT_DIR}/platform/windows" ]]; then
+    BUDGET_TARGETS+=("${ROOT_DIR}/platform/windows")
+  fi
   if [[ -d "${ROOT_DIR}/crates" ]]; then
     BUDGET_TARGETS+=("${ROOT_DIR}/crates")
   fi

@@ -2,6 +2,7 @@
 members = [
   "crates/storpulse-core",
   "crates/storpulse-ffi",
+  "platform/windows/storpulse-windows-probe",
 ]
 resolver = "3"
 
@@ -16,3 +17,4 @@ repository = "https://github.com/HongXunPan/storpulse"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 storpulse-core = { path = "crates/storpulse-core" }
+windows-sys = "0.61.2"
