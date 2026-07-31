@@ -27,7 +27,7 @@ enum RealtimeApplicationTableColumn: String, CaseIterable {
 
     var title: String {
         switch self {
-        case .application: "应用"
+        case .application: "应用与服务"
         case .current: "当前速率"
         case .recentAverage: "一分钟均值"
         case .runTotal: "本次累计"

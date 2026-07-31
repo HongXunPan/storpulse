@@ -68,7 +68,15 @@ struct ApplicationMetadata: Equatable {
 
     init(application: NSRunningApplication) {
         bundleIdentifier = application.bundleIdentifier
-        displayName = application.localizedName
+        let bundleURL = application.bundleURL
+        let serviceDisplayName = Self.isServiceBundle(bundleURL)
+            ? Self.localizedBundleDisplayName(at: bundleURL)
+            : nil
+        displayName = Self.resolvedDisplayName(
+            localizedName: application.localizedName,
+            bundleURL: bundleURL,
+            localizedBundleDisplayName: serviceDisplayName
+        )
     }
 
     static func preferred(
@@ -78,6 +86,45 @@ struct ApplicationMetadata: Equatable {
         candidate.completenessScore > existing.completenessScore
             ? candidate
             : existing
+    }
+
+    static func resolvedDisplayName(
+        localizedName: String?,
+        bundleURL: URL?,
+        localizedBundleDisplayName: String?
+    ) -> String? {
+        if isServiceBundle(bundleURL) {
+            return normalizedName(localizedBundleDisplayName)
+                ?? normalizedName(localizedName)
+        }
+        return normalizedName(localizedName)
+    }
+
+    private static func isServiceBundle(_ bundleURL: URL?) -> Bool {
+        bundleURL?.pathExtension.caseInsensitiveCompare("xpc") == .orderedSame
+    }
+
+    private static func localizedBundleDisplayName(at bundleURL: URL?) -> String? {
+        guard
+            let bundleURL,
+            let bundle = Bundle(url: bundleURL),
+            let declaredName = (
+                bundle.object(forInfoDictionaryKey: "CFBundleDisplayName")
+                    ?? bundle.object(forInfoDictionaryKey: "CFBundleName")
+            ) as? String
+        else {
+            return nil
+        }
+        return bundle.localizedString(
+            forKey: declaredName,
+            value: declaredName,
+            table: nil
+        )
+    }
+
+    private static func normalizedName(_ name: String?) -> String? {
+        let normalized = name?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return normalized?.isEmpty == false ? normalized : nil
     }
 
     private var completenessScore: Int {

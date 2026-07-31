@@ -32,13 +32,13 @@ struct RealtimeApplicationWorkspaceView: View {
             )
         } else if applications.isEmpty, isSearching {
             ContentUnavailableView(
-                "未找到匹配的应用",
+                "未找到匹配的应用或服务",
                 systemImage: "magnifyingglass",
-                description: Text("请尝试其他应用名称。")
+                description: Text("请尝试其他应用或服务名称。")
             )
         } else if applications.isEmpty {
             ContentUnavailableView(
-                "没有可显示的应用",
+                "没有可显示的应用或服务",
                 systemImage: "externaldrive",
                 description: Text("当前采样可能受限或暂时没有进程 I/O。")
             )

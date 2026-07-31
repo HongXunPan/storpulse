@@ -53,7 +53,7 @@ public struct DashboardView: View {
         .searchable(
             text: $searchText,
             placement: .toolbar,
-            prompt: "搜索应用"
+            prompt: "搜索应用或服务"
         )
         .onChange(of: selectedApplicationID) { _, applicationID in
             guard let applicationID else { return }
