@@ -1,6 +1,6 @@
 use std::alloc::{Layout, alloc, dealloc};
 use std::fs::{File, OpenOptions};
-use std::mem::{size_of, size_of_val};
+use std::mem::size_of;
 use std::os::windows::fs::OpenOptionsExt;
 use std::os::windows::io::AsRawHandle;
 use std::path::Path;
@@ -10,12 +10,8 @@ use windows_sys::Win32::Foundation::{
     ERROR_INVALID_DATA, ERROR_INVALID_PARAMETER, ERROR_NOT_ENOUGH_MEMORY, HANDLE,
 };
 use windows_sys::Win32::Storage::FileSystem::{
-    FILE_FLAG_NO_BUFFERING, FILE_FLAG_SEQUENTIAL_SCAN, ReadFile,
-};
-use windows_sys::Win32::System::IO::DeviceIoControl;
-use windows_sys::Win32::System::Ioctl::{
-    IOCTL_STORAGE_QUERY_PROPERTY, PropertyStandardQuery, STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR,
-    STORAGE_PROPERTY_QUERY, StorageAccessAlignmentProperty,
+    FILE_FLAG_NO_BUFFERING, FILE_FLAG_SEQUENTIAL_SCAN, FILE_STORAGE_INFO, FileStorageInfo,
+    GetFileInformationByHandleEx, ReadFile,
 };
 
 use super::NativeFailure;
@@ -138,47 +134,33 @@ fn validate_alignment(
 }
 
 fn query_storage_alignment(file: &File) -> Result<StorageAlignment, NativeFailure> {
-    let query = STORAGE_PROPERTY_QUERY {
-        PropertyId: StorageAccessAlignmentProperty,
-        QueryType: PropertyStandardQuery,
-        AdditionalParameters: [0],
-    };
-    let mut descriptor = STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR::default();
-    let mut bytes_returned = 0_u32;
-    // SAFETY：文件句柄有效；输入输出结构与 IOCTL_STORAGE_QUERY_PROPERTY 契约匹配。
+    let mut storage_info = FILE_STORAGE_INFO::default();
+    // SAFETY：文件句柄有效；输出缓冲区与 FileStorageInfo 对应的结构和大小匹配。
     let succeeded = unsafe {
-        DeviceIoControl(
+        GetFileInformationByHandleEx(
             file.as_raw_handle(),
-            IOCTL_STORAGE_QUERY_PROPERTY,
-            (&query as *const STORAGE_PROPERTY_QUERY).cast(),
-            size_of_val(&query) as u32,
-            (&mut descriptor as *mut STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR).cast(),
-            size_of_val(&descriptor) as u32,
-            &mut bytes_returned,
-            std::ptr::null_mut(),
+            FileStorageInfo,
+            (&mut storage_info as *mut FILE_STORAGE_INFO).cast(),
+            size_of::<FILE_STORAGE_INFO>() as u32,
         )
     };
     if succeeded == 0 {
         return Err(NativeFailure::last(
             "workload",
-            "DeviceIoControl.StorageAccessAlignment",
-        ));
-    }
-    if bytes_returned < size_of::<STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR>() as u32
-        || descriptor.BytesPerLogicalSector == 0
-        || descriptor.BytesPerPhysicalSector == 0
-    {
-        return Err(NativeFailure::new(
-            "workload",
-            "StorageAccessAlignment.invalid",
-            ERROR_INVALID_DATA,
+            "GetFileInformationByHandleEx.FileStorageInfo",
         ));
     }
 
-    Ok(StorageAlignment {
-        logical_sector_bytes: descriptor.BytesPerLogicalSector,
-        physical_sector_bytes: descriptor.BytesPerPhysicalSector,
-    })
+    Ok(storage_alignment_from_info(&storage_info))
+}
+
+fn storage_alignment_from_info(storage_info: &FILE_STORAGE_INFO) -> StorageAlignment {
+    StorageAlignment {
+        logical_sector_bytes: storage_info.LogicalBytesPerSector,
+        physical_sector_bytes: storage_info
+            .PhysicalBytesPerSectorForAtomicity
+            .max(storage_info.PhysicalBytesPerSectorForPerformance),
+    }
 }
 
 fn io_failure(phase: &'static str, api: &'static str, error: std::io::Error) -> NativeFailure {
@@ -217,5 +199,20 @@ mod tests {
         };
 
         assert_eq!(buffer.as_mut_ptr() as usize % 4096, 0);
+    }
+
+    #[test]
+    fn selects_conservative_physical_sector_alignment() {
+        let storage_info = FILE_STORAGE_INFO {
+            LogicalBytesPerSector: 512,
+            PhysicalBytesPerSectorForAtomicity: 4_096,
+            PhysicalBytesPerSectorForPerformance: 16_384,
+            ..Default::default()
+        };
+
+        let alignment = storage_alignment_from_info(&storage_info);
+
+        assert_eq!(alignment.logical_sector_bytes, 512);
+        assert_eq!(alignment.physical_sector_bytes, 16_384);
     }
 }
