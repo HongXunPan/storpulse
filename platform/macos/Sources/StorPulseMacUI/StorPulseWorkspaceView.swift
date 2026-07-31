@@ -37,8 +37,8 @@ final class StorPulseWorkspaceModel: ObservableObject {
 
 struct StorPulseWorkspaceView: View {
     @ObservedObject private var model: StorPulseWorkspaceModel
-    @ObservedObject private var monitor: RealtimeMonitor
-    @ObservedObject private var historyViewModel: HistoryViewModel
+    private let monitor: RealtimeMonitor
+    private let historyViewModel: HistoryViewModel
 
     init(
         model: StorPulseWorkspaceModel,

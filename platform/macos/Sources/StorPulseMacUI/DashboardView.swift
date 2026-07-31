@@ -11,9 +11,17 @@ public struct DashboardView: View {
     public var body: some View {
         VStack(spacing: 0) {
             summary
-            applicationList
+            RealtimeApplicationWorkspaceView(
+                applications: sortedApplications,
+                processes: monitor.snapshot?.processes ?? [],
+                ratesAreTrustworthy: monitor.ratesAreTrustworthy,
+                hasSnapshot: monitor.snapshot != nil
+            )
         }
-        .frame(minWidth: 700, minHeight: 520)
+        .frame(
+            minWidth: RealtimeApplicationLayout.minimumDetailWidth,
+            minHeight: 520
+        )
         .background(Color(nsColor: .windowBackgroundColor))
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
@@ -25,22 +33,54 @@ public struct DashboardView: View {
                 }
                 .pickerStyle(.menu)
                 .frame(width: 150)
+                .help("应用排序方式")
             }
         }
     }
 
     private var summary: some View {
         GroupBox {
-            HStack(spacing: 28) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("数据状态")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    TrustBadge(
-                        state: monitor.samplingState,
-                        completeness: monitor.snapshot?.completeness
-                    )
-                }
+            ViewThatFits(in: .horizontal) {
+                wideSummary
+                compactSummary
+            }
+        }
+        .padding(.horizontal, RealtimeApplicationLayout.horizontalInset)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
+    }
+
+    private var wideSummary: some View {
+        HStack(spacing: 16) {
+            statusSummary
+                .frame(minWidth: 180, maxWidth: .infinity, alignment: .leading)
+            summaryDivider
+            summaryMetric(
+                title: "设备读取",
+                value: trustedDeviceRate?.readBytesPerSecond,
+                symbol: "arrow.down.circle"
+            )
+            summaryDivider
+            summaryMetric(
+                title: "设备写入",
+                value: trustedDeviceRate?.writeBytesPerSecond,
+                symbol: "arrow.up.circle"
+            )
+            if monitor.snapshot?.activeObservationSession != nil {
+                summaryDivider
+                observationSummary
+            }
+            if monitor.lastErrorMessage != nil {
+                errorSummary
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private var compactSummary: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            statusSummary
+            HStack(spacing: 20) {
                 summaryMetric(
                     title: "设备读取",
                     value: trustedDeviceRate?.readBytesPerSecond,
@@ -51,60 +91,63 @@ public struct DashboardView: View {
                     value: trustedDeviceRate?.writeBytesPerSecond,
                     symbol: "arrow.up.circle"
                 )
-                if let session = monitor.snapshot?.activeObservationSession {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("观察会话")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text(IOPresentation.duration(milliseconds: session.durationMilliseconds))
-                            .font(.headline.monospacedDigit())
-                        Text(
-                            "读 \(IOPresentation.bytes(session.readBytes)) · 写 \(IOPresentation.bytes(session.writeBytes))"
-                        )
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                    }
-                }
                 Spacer()
-                if let message = monitor.lastErrorMessage {
-                    Label(message, systemImage: "exclamationmark.triangle")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                        .lineLimit(2)
-                        .frame(maxWidth: 240, alignment: .trailing)
-                }
+            }
+            if monitor.snapshot?.activeObservationSession != nil {
+                observationSummary
+            }
+            if monitor.lastErrorMessage != nil {
+                errorSummary
             }
         }
-        .padding([.top, .horizontal])
     }
 
-    private var applicationList: some View {
-        List(sortedApplications) { application in
-            ApplicationRowView(
-                application: application,
-                processes: processes(for: application),
-                ratesAreTrustworthy: monitor.ratesAreTrustworthy
-            )
-            .listRowInsets(
-                EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12)
+    private var statusSummary: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("数据状态")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            TrustBadge(
+                state: monitor.samplingState,
+                completeness: monitor.snapshot?.completeness
             )
         }
-        .listStyle(.inset)
-        .overlay {
-            if monitor.snapshot == nil {
-                ContentUnavailableView(
-                    "等待采样",
-                    systemImage: "waveform.path.ecg",
-                    description: Text("至少需要两个采样点才能计算实时速度。")
+    }
+
+    @ViewBuilder
+    private var observationSummary: some View {
+        if let session = monitor.snapshot?.activeObservationSession {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("观察会话")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(IOPresentation.duration(milliseconds: session.durationMilliseconds))
+                    .font(.headline.monospacedDigit())
+                Text(
+                    "读 \(IOPresentation.bytes(session.readBytes)) · 写 \(IOPresentation.bytes(session.writeBytes))"
                 )
-            } else if sortedApplications.isEmpty {
-                ContentUnavailableView(
-                    "没有可显示的应用",
-                    systemImage: "externaldrive",
-                    description: Text("当前采样可能受限或暂时没有进程 I/O。")
-                )
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
             }
         }
+    }
+
+    @ViewBuilder
+    private var errorSummary: some View {
+        if let message = monitor.lastErrorMessage {
+            Label(message, systemImage: "exclamationmark.triangle")
+                .font(.caption)
+                .foregroundStyle(.orange)
+                .lineLimit(2)
+                .frame(maxWidth: 220, alignment: .trailing)
+                .accessibilityLabel("采样错误：\(message)")
+        }
+    }
+
+    private var summaryDivider: some View {
+        Divider()
+            .frame(height: 36)
     }
 
     private var observationButton: some View {
@@ -123,6 +166,11 @@ public struct DashboardView: View {
                 }
             }
         }
+        .help(
+            monitor.snapshot?.activeObservationSession == nil
+                ? "开始记录本次观察会话"
+                : "停止并保存本次观察会话摘要"
+        )
     }
 
     private var trustedDeviceRate: IORate? {
@@ -131,17 +179,6 @@ public struct DashboardView: View {
 
     private var sortedApplications: [RealtimeApplication] {
         IOPresentation.sorted(monitor.snapshot?.applications ?? [], by: sort)
-    }
-
-    private func processes(for application: RealtimeApplication) -> [RealtimeProcess] {
-        let identities = Set(application.processIdentities)
-        return (monitor.snapshot?.processes ?? [])
-            .filter { identities.contains($0.identity) }
-            .sorted { lhs, rhs in
-                if lhs.isHelper != rhs.isHelper { return !lhs.isHelper }
-                return lhs.executableName.localizedStandardCompare(rhs.executableName)
-                    == .orderedAscending
-            }
     }
 
     private func summaryMetric(title: String, value: Double?, symbol: String) -> some View {
@@ -153,6 +190,6 @@ public struct DashboardView: View {
                 .font(.headline.monospacedDigit())
                 .contentTransition(.numericText())
         }
-        .frame(width: 170, alignment: .leading)
+        .frame(width: 124, alignment: .leading)
     }
 }

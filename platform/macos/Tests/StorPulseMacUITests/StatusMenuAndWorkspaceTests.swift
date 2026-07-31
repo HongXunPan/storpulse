@@ -50,6 +50,14 @@ func workspaceModelReusesSelection() {
     #expect(model.currentModule == .realtime)
 }
 
+@Test("实时应用列和进程入口适配最小详情宽度")
+func realtimeApplicationColumnsFitMinimumDetailWidth() {
+    #expect(
+        RealtimeApplicationLayout.minimumRequiredWidth
+            <= RealtimeApplicationLayout.minimumDetailWidth
+    )
+}
+
 @MainActor
 private final class StatusMenuActionTarget: NSObject {
     @objc func performAction() {}

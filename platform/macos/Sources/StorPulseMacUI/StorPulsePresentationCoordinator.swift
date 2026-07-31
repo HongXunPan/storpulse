@@ -2,7 +2,13 @@ import AppKit
 
 @MainActor
 final class StorPulsePresentationCoordinator {
-    private let mainWindowController: StorPulseMainWindowController
+    private let monitor: RealtimeMonitor
+    private let historyViewModel: HistoryViewModel
+
+    private lazy var mainWindowController = StorPulseMainWindowController(
+        monitor: monitor,
+        historyViewModel: historyViewModel
+    )
 
     private lazy var menuBarController = MenuBarController(
         monitor: monitor,
@@ -13,17 +19,12 @@ final class StorPulsePresentationCoordinator {
         )
     )
 
-    private let monitor: RealtimeMonitor
-
     init(
         monitor: RealtimeMonitor,
         historyViewModel: HistoryViewModel
     ) {
         self.monitor = monitor
-        mainWindowController = StorPulseMainWindowController(
-            monitor: monitor,
-            historyViewModel: historyViewModel
-        )
+        self.historyViewModel = historyViewModel
 
         // 状态栏控制器必须与展示协调器保持相同生命周期。
         _ = menuBarController

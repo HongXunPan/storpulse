@@ -29,9 +29,13 @@ public protocol RealtimeSnapshotObserver: Sendable {
 
 @MainActor
 public final class RealtimeMonitor: ObservableObject {
-    @Published public private(set) var snapshot: RealtimeSnapshot?
-    @Published public private(set) var samplingState: SamplingState = .starting
-    @Published public private(set) var lastErrorMessage: String?
+    private struct Presentation: Equatable {
+        var snapshot: RealtimeSnapshot?
+        var samplingState: SamplingState = .starting
+        var lastErrorMessage: String?
+    }
+
+    @Published private var presentation = Presentation()
 
     private let engine: any StorPulseEngineClient
     private let source: any SnapshotSource
@@ -56,13 +60,25 @@ public final class RealtimeMonitor: ObservableObject {
         samplingTask?.cancel()
     }
 
+    public var snapshot: RealtimeSnapshot? {
+        presentation.snapshot
+    }
+
+    public var samplingState: SamplingState {
+        presentation.samplingState
+    }
+
+    public var lastErrorMessage: String? {
+        presentation.lastErrorMessage
+    }
+
     public var ratesAreTrustworthy: Bool {
         samplingState == .live && snapshot?.freshness == "fresh"
     }
 
     public func start() {
         guard samplingTask == nil else { return }
-        samplingState = .starting
+        updatePresentation { $0.samplingState = .starting }
         samplingTask = Task { [weak self] in
             guard let self else { return }
             while !Task.isCancelled {
@@ -79,7 +95,7 @@ public final class RealtimeMonitor: ObservableObject {
     public func stop() {
         samplingTask?.cancel()
         samplingTask = nil
-        samplingState = .paused
+        updatePresentation { $0.samplingState = .paused }
     }
 
     public func sampleOnce() async {
@@ -89,20 +105,26 @@ public final class RealtimeMonitor: ObservableObject {
             let realtime = try await engine.snapshot(
                 at: DispatchTime.now().uptimeNanoseconds
             )
-            snapshot = realtime
             consecutiveFailures = 0
-            lastErrorMessage = nil
-            samplingState = realtime.freshness == "fresh" ? .live : .stale
+            updatePresentation {
+                $0.snapshot = realtime
+                $0.lastErrorMessage = nil
+                $0.samplingState = realtime.freshness == "fresh" ? .live : .stale
+            }
             for observer in observers {
                 await observer.realtimeSnapshotProduced(realtime)
             }
         } catch {
             consecutiveFailures += 1
-            lastErrorMessage = error.localizedDescription
-            if consecutiveFailures >= 3 {
-                samplingState = .stale
-            } else {
-                samplingState = .interrupted(missedSamples: consecutiveFailures)
+            updatePresentation {
+                $0.lastErrorMessage = error.localizedDescription
+                if consecutiveFailures >= 3 {
+                    $0.samplingState = .stale
+                } else {
+                    $0.samplingState = .interrupted(
+                        missedSamples: consecutiveFailures
+                    )
+                }
             }
         }
     }
@@ -133,7 +155,7 @@ public final class RealtimeMonitor: ObservableObject {
                 return session
             }
         } catch {
-            lastErrorMessage = error.localizedDescription
+            updatePresentation { $0.lastErrorMessage = error.localizedDescription }
         }
         return nil
     }
@@ -143,16 +165,26 @@ public final class RealtimeMonitor: ObservableObject {
             _ = try await engine.execute(command)
             await refreshSnapshot()
         } catch {
-            lastErrorMessage = error.localizedDescription
+            updatePresentation { $0.lastErrorMessage = error.localizedDescription }
         }
     }
 
     private func refreshSnapshot() async {
         do {
-            snapshot = try await engine.snapshot(at: DispatchTime.now().uptimeNanoseconds)
+            let snapshot = try await engine.snapshot(
+                at: DispatchTime.now().uptimeNanoseconds
+            )
+            updatePresentation { $0.snapshot = snapshot }
         } catch {
-            lastErrorMessage = error.localizedDescription
+            updatePresentation { $0.lastErrorMessage = error.localizedDescription }
         }
+    }
+
+    private func updatePresentation(_ update: (inout Presentation) -> Void) {
+        var next = presentation
+        update(&next)
+        guard next != presentation else { return }
+        presentation = next
     }
 
     private static func iso8601(_ date: Date) -> String {

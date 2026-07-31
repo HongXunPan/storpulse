@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import StorPulseMacAdapter
 @testable import StorPulseMacUI
@@ -58,6 +59,27 @@ func staleAfterConsecutiveFailures() async {
     await monitor.sampleOnce()
     #expect(monitor.samplingState == .stale)
     #expect(!monitor.ratesAreTrustworthy)
+}
+
+@MainActor
+@Test("单次成功采样原子发布一份显示状态")
+func successfulSamplePublishesPresentationOnce() async {
+    let monitor = RealtimeMonitor(
+        engine: SequencedEngineClient(),
+        source: FixtureSnapshotSource()
+    )
+    var publicationCount = 0
+    let cancellable = monitor.objectWillChange.sink {
+        publicationCount += 1
+    }
+
+    await monitor.sampleOnce()
+
+    #expect(publicationCount == 1)
+    #expect(monitor.snapshot != nil)
+    #expect(monitor.samplingState == .live)
+    #expect(monitor.lastErrorMessage == nil)
+    withExtendedLifetime(cancellable) {}
 }
 
 @Test("动态引擎路径支持环境变量和祖先目录查找")
