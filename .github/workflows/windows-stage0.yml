@@ -57,7 +57,7 @@ jobs:
         run: cargo build --locked --release --package storpulse-windows-probe --target x86_64-pc-windows-msvc
 
       - name: 生成主包与符号包
-        shell: powershell
+        shell: pwsh
         run: |
           $CargoMetadata = cargo metadata --locked --no-deps --format-version 1 | ConvertFrom-Json
           $ReleaseDirectory = Join-Path ([string]$CargoMetadata.target_directory) "x86_64-pc-windows-msvc/release"
