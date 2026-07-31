@@ -1,4 +1,5 @@
 mod environment;
+mod error;
 mod etw;
 mod process;
 mod unbuffered_file;
@@ -6,75 +7,29 @@ mod workload;
 
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use windows_sys::Win32::Foundation::{
-    ERROR_ACCESS_DENIED, ERROR_ALREADY_EXISTS, ERROR_INVALID_HANDLE, ERROR_INVALID_PARAMETER,
-    GetLastError,
-};
-
 use crate::model::{
     DiagnosticError, EtwEventReport, ProcessMeasurements, ProcessScanReport, SelfMeasurementReport,
     Stage0Report, TimelineEvent, WorkloadReport, delta,
 };
-use crate::options::ProbeOptions;
+use crate::options::{ProbeCommand, ProbeOptions};
 use crate::report::write_reports;
 
-pub struct RunError {
-    message: String,
-}
-
-impl RunError {
-    pub fn safe_message(&self) -> &str {
-        &self.message
-    }
-}
-
-#[derive(Clone)]
-pub struct NativeFailure {
-    phase: &'static str,
-    api: &'static str,
-    code: u32,
-    session_started: bool,
-}
-
-impl NativeFailure {
-    fn new(phase: &'static str, api: &'static str, code: u32) -> Self {
-        Self::new_with_session(phase, api, code, false)
-    }
-
-    fn new_with_session(
-        phase: &'static str,
-        api: &'static str,
-        code: u32,
-        session_started: bool,
-    ) -> Self {
-        Self {
-            phase,
-            api,
-            code,
-            session_started,
-        }
-    }
-
-    fn last(phase: &'static str, api: &'static str) -> Self {
-        // SAFETY：GetLastError 无参数且仅读取当前线程错误状态。
-        Self::new(phase, api, unsafe { GetLastError() })
-    }
-
-    fn diagnostic(&self) -> DiagnosticError {
-        DiagnosticError {
-            phase: self.phase,
-            api: self.api,
-            code: self.code,
-            category: error_category(self.code),
-        }
-    }
-}
+use self::error::{NativeFailure, RunError};
 
 pub fn run() -> Result<(), RunError> {
-    let options = ProbeOptions::parse().map_err(|message| RunError { message })?;
-    std::fs::create_dir_all(&options.output_directory).map_err(|_| RunError {
-        message: "无法创建诊断输出目录".to_string(),
-    })?;
+    match ProbeCommand::parse().map_err(RunError::new)? {
+        ProbeCommand::Diagnostic(options) => run_diagnostic(options),
+        ProbeCommand::ShortLivedRead(path) => {
+            workload::perform_short_lived_read(&path).map_err(|error| {
+                RunError::new(format!("短命读取负载失败：{} ({})", error.api, error.code))
+            })
+        }
+    }
+}
+
+fn run_diagnostic(options: ProbeOptions) -> Result<(), RunError> {
+    std::fs::create_dir_all(&options.output_directory)
+        .map_err(|_| RunError::new("无法创建诊断输出目录"))?;
 
     let started = Instant::now();
     let process_id = std::process::id();
@@ -116,50 +71,60 @@ pub fn run() -> Result<(), RunError> {
         }
     };
 
-    let workload = match workload::perform(&options.output_directory, options.skip_workload) {
-        Ok(report) => {
-            push_timeline(
-                &mut timeline,
-                started,
-                "info",
-                "workload",
-                if options.skip_workload {
-                    "skipped"
-                } else {
-                    "completed"
-                },
-                None,
-            );
-            report
-        }
-        Err(error) => {
-            record_error(&mut errors, &mut timeline, started, error);
-            WorkloadReport {
-                attempted: !options.skip_workload,
-                ..Default::default()
+    let (workload, short_lived_processes, short_lived_process_handles) =
+        match workload::perform(&options.output_directory, options.skip_workload) {
+            Ok(outcome) => {
+                push_timeline(
+                    &mut timeline,
+                    started,
+                    "info",
+                    "workload",
+                    if options.skip_workload {
+                        "skipped"
+                    } else {
+                        "completed"
+                    },
+                    None,
+                );
+                (
+                    outcome.report,
+                    outcome.short_lived_processes,
+                    outcome.short_lived_process_handles,
+                )
             }
-        }
-    };
+            Err(error) => {
+                record_error(&mut errors, &mut timeline, started, error);
+                (
+                    WorkloadReport {
+                        attempted: !options.skip_workload,
+                        ..Default::default()
+                    },
+                    Vec::new(),
+                    Vec::new(),
+                )
+            }
+        };
 
     let requested_duration = Duration::from_secs(options.duration_seconds);
     if let Some(remaining) = requested_duration.checked_sub(trace_window_started.elapsed()) {
         std::thread::sleep(remaining);
     }
     if let Some(session) = trace_session {
-        etw_report = session.stop(process_id);
+        etw_report = session.stop(process_id, &short_lived_processes);
         push_timeline(&mut timeline, started, "info", "etw", "stopped", None);
     }
+    drop(short_lived_process_handles);
 
     let self_after = capture_self(&mut errors, &mut timeline, started, "self_workload_end");
     let process_scan_after =
         capture_process_scan(&mut errors, &mut timeline, started, "process_scan_after");
     let self_measurements = calculate_self_measurements(&self_before, &self_idle, &self_after);
-    let outcome =
-        if etw_report.session_started && etw_report.consumer_started && workload.completed {
-            "windows_diagnostic_collected"
-        } else {
-            "windows_diagnostic_restricted"
-        };
+    let outcome = if etw_report.session_started && etw_report.consumer_started && workload.completed
+    {
+        "windows_diagnostic_collected"
+    } else {
+        "windows_diagnostic_restricted"
+    };
 
     push_timeline(
         &mut timeline,
@@ -188,11 +153,11 @@ pub fn run() -> Result<(), RunError> {
             "诊断包不采集用户名、完整路径、命令行、文件内容或原始 ETL",
             "不缓存读取只绕过 Windows 系统文件缓存，不声称绕过设备硬件缓存",
             "ETW 线程到进程映射可能遗漏短命线程，必须结合 unmappedDiskEvents 判断",
+            "短命进程只在单次诊断窗口内以 PID 与启动时间识别，并保留进程句柄到 ETW 停止；检测到 PID 重用时不判为通过",
             "设备总量与进程量尚未证明可比较，不计算未归因差额",
         ],
     };
-    write_reports(&options.output_directory, &report, &timeline)
-        .map_err(|message| RunError { message })?;
+    write_reports(&options.output_directory, &report, &timeline).map_err(RunError::new)?;
     println!("Windows 阶段 0 诊断完成，请返回生成的 diagnostics ZIP。");
     Ok(())
 }
@@ -295,15 +260,4 @@ fn unix_milliseconds() -> u128 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis()
-}
-
-fn error_category(code: u32) -> &'static str {
-    match code {
-        ERROR_ACCESS_DENIED => "access_denied",
-        ERROR_ALREADY_EXISTS => "session_conflict",
-        ERROR_INVALID_HANDLE => "invalid_handle",
-        ERROR_INVALID_PARAMETER => "invalid_parameter",
-        1460 => "timeout",
-        _ => "native_error",
-    }
 }

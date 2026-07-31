@@ -1,6 +1,6 @@
 ﻿param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("Standard", "Administrator")]
+    [ValidateSet("Standard", "PerformanceLogUser", "Administrator")]
     [string]$ExpectedMode,
 
     [ValidateRange(5, 300)]
@@ -95,8 +95,11 @@ try {
         $ActualHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $ProbePath).Hash.ToLowerInvariant()
     }
     $HashMatches = $ExpectedHash -ne "" -and $ActualHash -eq $ExpectedHash.ToLowerInvariant()
-    $ModeMatches = ($ExpectedMode -eq "Administrator" -and $ActualAdministrator) -or
-        ($ExpectedMode -eq "Standard" -and -not $ActualAdministrator)
+    $ModeMatches = switch ($ExpectedMode) {
+        "Administrator" { $ActualAdministrator }
+        "PerformanceLogUser" { -not $ActualAdministrator -and $PerformanceLogUser -eq $true }
+        "Standard" { -not $ActualAdministrator -and $PerformanceLogUser -eq $false }
+    }
     $CollectorStatus = "not_started"
 
     $FailureStage = "validate_probe"
@@ -217,6 +220,7 @@ finally {
         sequentialReadMode = $SequentialReadMode
         expectedMode = $ExpectedMode
         actualAdministrator = $ActualAdministrator
+        performanceLogUser = $PerformanceLogUser
         modeMatches = $ModeMatches
         expectedProbeSha256 = $ExpectedHash.ToLowerInvariant()
         actualProbeSha256 = $ActualHash

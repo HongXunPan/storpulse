@@ -21,9 +21,20 @@ function Write-PackageDiagnostics {
 $PackageRoot = [System.IO.Path]::GetFullPath($PackageRoot)
 $CollectorPath = Join-Path $PackageRoot "scripts/collect.ps1"
 $DiagnosticsRoot = Join-Path $PackageRoot "diagnostics"
+$EntryFiles = @(
+    "收集标准用户日志.cmd",
+    "收集性能日志用户日志.cmd",
+    "收集管理员日志.cmd"
+)
 
 if (-not (Test-Path -LiteralPath $CollectorPath -PathType Leaf)) {
     throw "找不到成品包采集入口：$CollectorPath"
+}
+foreach ($EntryFile in $EntryFiles) {
+    $EntryPath = Join-Path $PackageRoot $EntryFile
+    if (-not (Test-Path -LiteralPath $EntryPath -PathType Leaf)) {
+        throw "成品包缺少权限模式入口：$EntryPath"
+    }
 }
 if (Test-Path -LiteralPath $DiagnosticsRoot) {
     Remove-Item -Recurse -Force -LiteralPath $DiagnosticsRoot
@@ -85,6 +96,13 @@ if ($CollectorResult.probeOutcome -ne $Summary.outcome -or
     Write-PackageDiagnostics -Directory $RunDirectory.FullName
     throw "成品包采集摘要与探针报告不一致"
 }
+$EnvironmentPath = Join-Path $RunDirectory.FullName "environment.json"
+$EnvironmentText = [System.IO.File]::ReadAllText($EnvironmentPath, [System.Text.Encoding]::UTF8)
+$Environment = $EnvironmentText | ConvertFrom-Json
+if ($CollectorResult.performanceLogUser -ne $Environment.performanceLogUser) {
+    Write-PackageDiagnostics -Directory $RunDirectory.FullName
+    throw "成品包采集结果与环境报告的性能日志用户身份不一致"
+}
 if (-not $Summary.etw.sessionStarted -or -not $Summary.etw.consumerStarted) {
     Write-PackageDiagnostics -Directory $RunDirectory.FullName
     throw "成品包 ETW 会话没有成功启动：startStatus=$($Summary.etw.startStatus) openStatus=$($Summary.etw.openStatus)"
@@ -101,6 +119,20 @@ $ProbeEtw = @($Summary.etw.topProcesses | Where-Object { $_.isProbe }) | Select-
 if ($null -eq $ProbeEtw -or $ProbeEtw.readBytes -le 0 -or $Summary.etw.diskReadEvents -le 0) {
     Write-PackageDiagnostics -Directory $RunDirectory.FullName
     throw "成品包 ETW 没有观察到探针的不缓存读取"
+}
+$ExpectedShortLivedProcesses = 40
+$ExpectedShortLivedReadBytes = 40 * 1MB
+if ($Summary.workload.shortLivedProcessesStarted -ne $ExpectedShortLivedProcesses -or
+    $Summary.workload.shortLivedProcessReadBytes -ne $ExpectedShortLivedReadBytes -or
+    $Summary.etw.shortLivedPidReuseDetected -or
+    $Summary.etw.shortLivedProcessesExpected -ne $ExpectedShortLivedProcesses -or
+    $Summary.etw.shortLivedProcessIdentities -ne $ExpectedShortLivedProcesses -or
+    $Summary.etw.shortLivedProcessStartMatches -ne $ExpectedShortLivedProcesses -or
+    $Summary.etw.shortLivedProcessEndMatches -ne $ExpectedShortLivedProcesses -or
+    $Summary.etw.shortLivedProcessIoMatches -ne $ExpectedShortLivedProcesses -or
+    $Summary.etw.shortLivedProcessReadBytes -lt $ExpectedShortLivedReadBytes) {
+    Write-PackageDiagnostics -Directory $RunDirectory.FullName
+    throw "成品包没有完整证明 40 个短命进程的启动、结束和磁盘读取归因"
 }
 
 $ArchivePath = Join-Path $DiagnosticsRoot ("storpulse-diagnostics-{0}.zip" -f $CollectorResult.runId)

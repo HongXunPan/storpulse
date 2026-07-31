@@ -39,6 +39,7 @@ Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-stage0/collect-environm
 Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-stage0/invoke-probe.ps1") -Destination $ScriptsDirectory
 Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-stage0/launch-admin.ps1") -Destination $ScriptsDirectory
 Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-stage0/collect-standard.cmd") -Destination (Join-Path $PackageRoot "收集标准用户日志.cmd")
+Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-stage0/collect-performance-log-user.cmd") -Destination (Join-Path $PackageRoot "收集性能日志用户日志.cmd")
 Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-stage0/collect-admin.cmd") -Destination (Join-Path $PackageRoot "收集管理员日志.cmd")
 Copy-Item -LiteralPath (Join-Path $Root "docs/Windows阶段0协作调试指南.md") -Destination $PackageRoot
 

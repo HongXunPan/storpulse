@@ -59,17 +59,39 @@ impl Drop for AlignedBuffer {
 }
 
 pub(super) fn read(path: &Path) -> Result<UnbufferedReadReport, NativeFailure> {
-    let metadata_file = File::open(path)
-        .map_err(|error| io_failure("workload", "open_alignment_probe", error))?;
+    read_internal(path, None)
+}
+
+pub(super) fn read_prefix(
+    path: &Path,
+    requested_bytes: u64,
+) -> Result<UnbufferedReadReport, NativeFailure> {
+    read_internal(path, Some(requested_bytes))
+}
+
+fn read_internal(
+    path: &Path,
+    requested_bytes: Option<u64>,
+) -> Result<UnbufferedReadReport, NativeFailure> {
+    let metadata_file =
+        File::open(path).map_err(|error| io_failure("workload", "open_alignment_probe", error))?;
     let file_bytes = metadata_file
         .metadata()
         .map_err(|error| io_failure("workload", "read_file_metadata", error))?
         .len();
+    let read_bytes = requested_bytes.unwrap_or(file_bytes);
+    if read_bytes == 0 || read_bytes > file_bytes {
+        return Err(NativeFailure::new(
+            "workload",
+            "validate_unbuffered_read_length",
+            ERROR_INVALID_PARAMETER,
+        ));
+    }
     let alignment = query_storage_alignment(&metadata_file)?;
     drop(metadata_file);
 
     let physical_sector_bytes = alignment.physical_sector_bytes as usize;
-    validate_alignment(file_bytes, &alignment)?;
+    validate_alignment(read_bytes, &alignment)?;
 
     let reader = OpenOptions::new()
         .read(true)
@@ -79,7 +101,7 @@ pub(super) fn read(path: &Path) -> Result<UnbufferedReadReport, NativeFailure> {
     let handle: HANDLE = reader.as_raw_handle();
     let mut buffer = AlignedBuffer::new(READ_BLOCK_BYTES, physical_sector_bytes)?;
     let mut bytes = 0_u64;
-    for _ in 0..(file_bytes / READ_BLOCK_BYTES as u64) {
+    for _ in 0..(read_bytes / READ_BLOCK_BYTES as u64) {
         let mut bytes_read = 0_u32;
         // SAFETY：handle 有效；缓冲区按物理扇区对齐且大小是逻辑扇区整数倍；同步读取不使用 OVERLAPPED。
         let succeeded = unsafe {
@@ -111,10 +133,7 @@ pub(super) fn read(path: &Path) -> Result<UnbufferedReadReport, NativeFailure> {
     })
 }
 
-fn validate_alignment(
-    file_bytes: u64,
-    alignment: &StorageAlignment,
-) -> Result<(), NativeFailure> {
+fn validate_alignment(file_bytes: u64, alignment: &StorageAlignment) -> Result<(), NativeFailure> {
     let logical_sector_bytes = alignment.logical_sector_bytes as usize;
     let physical_sector_bytes = alignment.physical_sector_bytes as usize;
     if logical_sector_bytes == 0

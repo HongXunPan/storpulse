@@ -4,7 +4,7 @@
 
 GitHub Actions 会构建一个无需安装 Rust、Visual Studio 或 .NET 的 Windows x64 原生诊断包。它用于在真实 Windows 上验证：
 
-- 标准用户能否启动和消费系统 ETW DiskIo 会话；
+- 标准用户或“性能日志用户”组成员能否启动和消费系统 ETW DiskIo 会话；
 - 管理员权限是否改变 ETW 可用性；
 - DiskIo 读写事件能否通过线程事件归因到 PID；
 - `GetProcessIoCounters` 的广义进程 I/O 覆盖率和受限比例；
@@ -34,21 +34,33 @@ Windows Server、早期 Windows 10 和 Windows 11 也可以返回探索性日志
    - `package-manifest.json`
    - `SHA256SUMS.txt`
    - `scripts/collect.ps1`、`scripts/collect-environment.ps1`、`scripts/invoke-probe.ps1` 与 `scripts/launch-admin.ps1`
-   - 两个中文 `.cmd` 入口
+   - 三个中文 `.cmd` 入口
 4. 诊断脚本会在运行前比较 EXE 的 SHA-256；不匹配时不会启动探针。
 
 当前诊断包未做发行签名，Windows SmartScreen 可能提示未知发布者。只应从项目对应 GitHub Actions 运行下载，不应从聊天附件或第三方网盘转发；正式签名不属于本阶段。
 
-## 4. 标准用户诊断
+## 4. 非管理员诊断
+
+### 4.1 标准用户
 
 1. 确认当前命令窗口或文件管理器不是以管理员身份运行。
 2. 双击 `收集标准用户日志.cmd`。
    不要直接双击 `storpulse-windows-probe.exe`；EXE 需要由采集脚本传入输出目录并完成哈希、权限和环境校验。
-3. 等待约 15–30 秒；期间会创建并删除约 64 MiB 顺序文件、使用按扇区对齐且绕过 Windows 系统文件缓存的方式读取该文件、创建 500 个小文件，并启动 40 个立即退出的 `cmd.exe`。
+3. 等待约 15–30 秒；期间会创建并删除约 64 MiB 顺序文件、使用按扇区对齐且绕过 Windows 系统文件缓存的方式读取该文件、创建 500 个小文件，并启动 40 个探针子进程分别执行 1 MiB 不缓存读取。
 4. 看到完成提示后按回车退出。
 5. 在 `diagnostics` 目录找到最新的 `storpulse-diagnostics-*.zip`。
 
 标准用户结果是产品默认权限边界的首要证据。即使 ETW 被拒绝，脚本也会保留环境、Win32 错误码和受限进程计数，因此不要只发截图。
+
+### 4.2 性能日志用户
+
+仅在标准用户结果稳定显示 `StartTraceW=5` 后执行这个可选对照；不要为了首轮测试预先改组成员：
+
+1. 由机器管理员把专用测试账户手工加入 Windows 内置“性能日志用户”（`S-1-5-32-559`）组；诊断包不会自动修改账户或本地组。
+2. 测试账户注销并重新登录，使新的组令牌生效；保持当前命令窗口和文件管理器不是管理员身份。
+3. 双击 `收集性能日志用户日志.cmd`，返回新生成的 ZIP。
+
+该入口会同时验证“非管理员”和“性能日志用户组成员”两个条件，不能用管理员窗口代替。它用于判断最小权限组是否足以启用 ETW，不代表 StorPulse 会在安装时自动改组或要求该权限。
 
 ## 5. 管理员对照诊断
 
@@ -62,10 +74,10 @@ Windows Server、早期 Windows 10 和 Windows 11 也可以返回探索性日志
 
 ## 6. 需要返回什么
 
-请返回两个 ZIP，并标注哪一个是标准用户、哪一个是管理员：
+至少返回标准用户和管理员两个 ZIP；若执行了性能日志用户对照，再返回第三个 ZIP，并标注每个权限模式：
 
 - `storpulse-diagnostics-<时间>-<随机标识>.zip`
-- 同一次协作机器上的第二个权限模式 ZIP
+- 同一台协作机器上其余已执行权限模式各自生成的 ZIP
 
 如果脚本显示失败，也要返回 ZIP。采集器会从初始化阶段开始记录脱敏失败阶段、异常类型和 HRESULT；失败包仍会包含 `collector-result.json`、`environment.json`、`console.log`，以及探针成功写出时的报告。异常消息、用户名、命令行和本机路径不会写入失败日志。
 
@@ -88,11 +100,11 @@ Windows Server、早期 Windows 10 和 Windows 11 也可以返回探索性日志
 开发者收到日志后按以下顺序判断：
 
 1. `hashMatches`、`modeMatches` 和 `probeExitCode` 是否正常；`status=completed` 只表示诊断流程完成，不能代替 `probeOutcome` 和 ETW 能力判断；
-2. Windows 版本、x64、标准/管理员身份是否符合本轮目标；
+2. Windows 版本、x64、管理员身份与性能日志用户组成员身份是否符合本轮目标；
 3. `sessionStarted`、`consumerStarted` 和 `errors.json` 是否显示权限或会话冲突；
 4. `eventsLost`、`unmappedDiskEvents`、`shortPayloadEvents` 是否影响可信度；
-5. 三类负载是否完成，`sequentialReadMode` 是否为 `windows_unbuffered_file`，读写方向和数量级是否可解释；
-6. 标准用户与管理员的差异能否稳定复现；
+5. 三类负载是否完成，`sequentialReadMode` 是否为 `windows_unbuffered_file`，40 个短命子进程的启动、结束和读取归因是否全部匹配；
+6. 标准用户、性能日志用户与管理员之间的差异能否稳定复现；
 7. 自身空闲写入、CPU、内存是否触发停止条件。
 
 ## 8. 隐私、清理与门禁边界

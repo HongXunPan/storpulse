@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::mem::size_of;
 use std::sync::{Arc, Mutex};
 
@@ -8,6 +8,8 @@ use windows_sys::Win32::System::Diagnostics::Etw::{
 };
 
 use crate::model::{EtwEventReport, ProcessDiskIoReport};
+
+use super::super::process::ProcessIdentity;
 
 pub(super) struct CallbackContext {
     pub stats: Arc<Mutex<EventStats>>,
@@ -26,6 +28,8 @@ pub(super) struct EventStats {
     report: EtwEventReport,
     thread_to_process: HashMap<u32, u32>,
     process_io: HashMap<u32, ProcessIo>,
+    process_start_ids: HashSet<u32>,
+    process_end_ids: HashSet<u32>,
 }
 
 #[derive(Default)]
@@ -60,9 +64,27 @@ impl EventStats {
         if same_guid(&event.EventHeader.ProviderId, &ThreadGuid) {
             self.observe_thread(event, opcode);
         } else if same_guid(&event.EventHeader.ProviderId, &ProcessGuid) {
-            self.report.process_events = self.report.process_events.saturating_add(1);
+            self.observe_process(event, opcode);
         } else if same_guid(&event.EventHeader.ProviderId, &DiskIoGuid) {
             self.observe_disk(event, opcode);
+        }
+    }
+
+    fn observe_process(&mut self, event: &EVENT_RECORD, opcode: u8) {
+        self.report.process_events = self.report.process_events.saturating_add(1);
+        if !matches!(opcode, 1 | 2) {
+            return;
+        }
+        let Some(process_id) =
+            read_u32(event, process_id_offset(u32::from(event.EventHeader.Flags)))
+        else {
+            self.report.short_payload_events = self.report.short_payload_events.saturating_add(1);
+            return;
+        };
+        if opcode == 1 {
+            self.process_start_ids.insert(process_id);
+        } else {
+            self.process_end_ids.insert(process_id);
         }
     }
 
@@ -130,6 +152,7 @@ impl EventStats {
     pub fn finish(
         &mut self,
         probe_process_id: u32,
+        short_lived_processes: &[ProcessIdentity],
         completion: SessionCompletion,
     ) -> EtwEventReport {
         self.report.session_started = true;
@@ -143,6 +166,7 @@ impl EventStats {
         self.report.realtime_buffers_lost = completion.realtime_buffers_lost;
 
         let mut report = self.report.clone();
+        self.correlate_short_lived_processes(&mut report, short_lived_processes);
         let mut processes: Vec<_> = self
             .process_io
             .iter()
@@ -162,6 +186,55 @@ impl EventStats {
         report.top_processes = processes;
         report
     }
+
+    fn correlate_short_lived_processes(
+        &self,
+        report: &mut EtwEventReport,
+        identities: &[ProcessIdentity],
+    ) {
+        let unique_identities: HashSet<_> = identities
+            .iter()
+            .map(|identity| (identity.process_id, identity.start_time_ticks))
+            .collect();
+        let process_ids: HashSet<_> = identities
+            .iter()
+            .map(|identity| identity.process_id)
+            .collect();
+        report.short_lived_processes_expected = identities.len() as u32;
+        report.short_lived_process_identities = unique_identities.len() as u32;
+        report.short_lived_pid_reuse_detected = process_ids.len() != unique_identities.len();
+
+        for process_id in process_ids {
+            if self.process_start_ids.contains(&process_id) {
+                report.short_lived_process_start_matches =
+                    report.short_lived_process_start_matches.saturating_add(1);
+            }
+            if self.process_end_ids.contains(&process_id) {
+                report.short_lived_process_end_matches =
+                    report.short_lived_process_end_matches.saturating_add(1);
+            }
+            if let Some(io) = self.process_io.get(&process_id)
+                && io.read_events.saturating_add(io.write_events) > 0
+            {
+                report.short_lived_process_io_matches =
+                    report.short_lived_process_io_matches.saturating_add(1);
+                report.short_lived_process_read_bytes = report
+                    .short_lived_process_read_bytes
+                    .saturating_add(io.read_bytes);
+                report.short_lived_process_write_bytes = report
+                    .short_lived_process_write_bytes
+                    .saturating_add(io.write_bytes);
+            }
+        }
+    }
+}
+
+fn process_id_offset(header_flags: u32) -> usize {
+    if header_flags & EVENT_HEADER_FLAG_32_BIT_HEADER != 0 {
+        4
+    } else {
+        8
+    }
 }
 
 fn read_u32(event: &EVENT_RECORD, offset: usize) -> Option<u32> {
@@ -179,4 +252,59 @@ fn same_guid(left: &windows_sys::core::GUID, right: &windows_sys::core::GUID) ->
         && left.data2 == right.data2
         && left.data3 == right.data3
         && left.data4 == right.data4
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn process_payload_pid_offset_follows_header_bitness() {
+        assert_eq!(process_id_offset(EVENT_HEADER_FLAG_32_BIT_HEADER), 4);
+        assert_eq!(process_id_offset(0), 8);
+    }
+
+    #[test]
+    fn correlates_short_lived_processes_without_persisting_identity_details() {
+        let mut stats = EventStats::default();
+        stats.process_start_ids.extend([101, 102]);
+        stats.process_end_ids.extend([101, 102]);
+        stats.process_io.insert(
+            101,
+            ProcessIo {
+                read_bytes: 1_048_576,
+                read_events: 1,
+                ..Default::default()
+            },
+        );
+        stats.process_io.insert(
+            102,
+            ProcessIo {
+                read_bytes: 1_048_576,
+                read_events: 1,
+                ..Default::default()
+            },
+        );
+        let identities = vec![
+            ProcessIdentity {
+                process_id: 101,
+                start_time_ticks: 1,
+            },
+            ProcessIdentity {
+                process_id: 102,
+                start_time_ticks: 2,
+            },
+        ];
+        let mut report = EtwEventReport::default();
+
+        stats.correlate_short_lived_processes(&mut report, &identities);
+
+        assert_eq!(report.short_lived_processes_expected, 2);
+        assert_eq!(report.short_lived_process_identities, 2);
+        assert_eq!(report.short_lived_process_start_matches, 2);
+        assert_eq!(report.short_lived_process_end_matches, 2);
+        assert_eq!(report.short_lived_process_io_matches, 2);
+        assert_eq!(report.short_lived_process_read_bytes, 2_097_152);
+        assert!(!report.short_lived_pid_reuse_detected);
+    }
 }

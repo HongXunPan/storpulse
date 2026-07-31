@@ -1,3 +1,6 @@
+use std::os::windows::io::AsRawHandle;
+use std::process::Child;
+
 use windows_sys::Win32::Foundation::{
     CloseHandle, ERROR_ACCESS_DENIED, ERROR_INVALID_HANDLE, ERROR_INVALID_PARAMETER, FILETIME,
     GetLastError, HANDLE, INVALID_HANDLE_VALUE,
@@ -17,10 +20,35 @@ use crate::model::{NativeIoCounters, ProcessMeasurements, ProcessScanReport};
 
 use super::NativeFailure;
 
+#[derive(Clone)]
+pub(super) struct ProcessIdentity {
+    pub(super) process_id: u32,
+    pub(super) start_time_ticks: u64,
+}
+
 pub fn current_process() -> Result<ProcessMeasurements, NativeFailure> {
     // SAFETY：GetCurrentProcess 返回无需关闭的伪句柄。
     let handle = unsafe { GetCurrentProcess() };
     read_measurements(handle, std::process::id(), true)
+}
+
+pub(super) fn child_identity(child: &Child) -> Result<ProcessIdentity, NativeFailure> {
+    let handle: HANDLE = child.as_raw_handle();
+    let mut creation = FILETIME::default();
+    let mut exit = FILETIME::default();
+    let mut kernel = FILETIME::default();
+    let mut user = FILETIME::default();
+    // SAFETY：Child 在调用期间持有有效进程句柄，所有 FILETIME 输出缓冲区均有效。
+    if unsafe { GetProcessTimes(handle, &mut creation, &mut exit, &mut kernel, &mut user) } == 0 {
+        return Err(NativeFailure::last(
+            "workload",
+            "GetProcessTimes.short_lived_child",
+        ));
+    }
+    Ok(ProcessIdentity {
+        process_id: child.id(),
+        start_time_ticks: filetime_ticks(creation),
+    })
 }
 
 pub fn scan_processes() -> Result<ProcessScanReport, NativeFailure> {

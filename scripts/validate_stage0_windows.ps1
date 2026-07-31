@@ -17,6 +17,28 @@ function Write-ProbeDiagnostics {
     }
 }
 
+function Assert-ShortLivedEvidence {
+    param([Parameter(Mandatory = $true)] $Summary)
+
+    $ExpectedProcesses = 40
+    $ExpectedReadBytes = 40 * 1MB
+    if ($Summary.workload.shortLivedProcessesStarted -ne $ExpectedProcesses -or
+        $Summary.workload.shortLivedProcessReadBytes -ne $ExpectedReadBytes) {
+        Write-ProbeDiagnostics -Directory $ReportDirectory
+        throw "Windows 阶段 0 短命读取负载数量或字节数不匹配"
+    }
+    if ($Summary.etw.shortLivedPidReuseDetected -or
+        $Summary.etw.shortLivedProcessesExpected -ne $ExpectedProcesses -or
+        $Summary.etw.shortLivedProcessIdentities -ne $ExpectedProcesses -or
+        $Summary.etw.shortLivedProcessStartMatches -ne $ExpectedProcesses -or
+        $Summary.etw.shortLivedProcessEndMatches -ne $ExpectedProcesses -or
+        $Summary.etw.shortLivedProcessIoMatches -ne $ExpectedProcesses -or
+        $Summary.etw.shortLivedProcessReadBytes -lt $ExpectedReadBytes) {
+        Write-ProbeDiagnostics -Directory $ReportDirectory
+        throw "Windows 阶段 0 没有完整证明 40 个短命进程的启动、结束和磁盘读取归因"
+    }
+}
+
 $Root = Split-Path -Parent $PSScriptRoot
 $TemporaryRoot = Join-Path $Root ".codex-tmp/windows-stage0-ci"
 $ReportDirectory = Join-Path $TemporaryRoot "probe-report"
@@ -72,6 +94,7 @@ try {
         Write-ProbeDiagnostics -Directory $ReportDirectory
         throw "Windows 阶段 0 ETW 没有观察到探针的不缓存读取"
     }
+    Assert-ShortLivedEvidence -Summary $Summary
     if ($SummaryText -match 'userName|commandLine|filePath|fileContent|processName') {
         throw "Windows 阶段 0 报告出现禁止持久化的字段"
     }

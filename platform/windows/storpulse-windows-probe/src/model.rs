@@ -60,6 +60,7 @@ pub struct WorkloadReport {
     pub physical_sector_bytes: Option<u32>,
     pub small_files_created: u32,
     pub short_lived_processes_started: u32,
+    pub short_lived_process_read_bytes: u64,
     pub cleanup_succeeded: bool,
 }
 
@@ -83,6 +84,14 @@ pub struct EtwEventReport {
     pub short_payload_events: u64,
     pub thread_events: u64,
     pub process_events: u64,
+    pub short_lived_processes_expected: u32,
+    pub short_lived_process_identities: u32,
+    pub short_lived_process_start_matches: u32,
+    pub short_lived_process_end_matches: u32,
+    pub short_lived_process_io_matches: u32,
+    pub short_lived_process_read_bytes: u64,
+    pub short_lived_process_write_bytes: u64,
+    pub short_lived_pid_reuse_detected: bool,
     pub events_lost: u32,
     pub log_buffers_lost: u32,
     pub realtime_buffers_lost: u32,

@@ -1,4 +1,12 @@
+use std::ffi::OsString;
 use std::path::PathBuf;
+
+pub const SHORT_LIVED_READ_PATH_ENV: &str = "STORPULSE_STAGE0_SHORT_READ_PATH";
+
+pub enum ProbeCommand {
+    Diagnostic(ProbeOptions),
+    ShortLivedRead(PathBuf),
+}
 
 pub struct ProbeOptions {
     pub output_directory: PathBuf,
@@ -7,8 +15,8 @@ pub struct ProbeOptions {
 }
 
 impl ProbeOptions {
-    pub fn parse() -> Result<Self, String> {
-        let mut arguments = std::env::args_os().skip(1);
+    fn parse(arguments: Vec<OsString>) -> Result<Self, String> {
+        let mut arguments = arguments.into_iter();
         let mut output_directory = None;
         let mut duration_seconds = 15;
         let mut skip_workload = false;
@@ -49,5 +57,18 @@ impl ProbeOptions {
             duration_seconds,
             skip_workload,
         })
+    }
+}
+
+impl ProbeCommand {
+    pub fn parse() -> Result<Self, String> {
+        let arguments: Vec<_> = std::env::args_os().skip(1).collect();
+        if arguments.len() == 1 && arguments[0].to_string_lossy() == "--short-lived-read" {
+            let path = std::env::var_os(SHORT_LIVED_READ_PATH_ENV)
+                .map(PathBuf::from)
+                .ok_or_else(|| "短命读取模式缺少内部路径".to_string())?;
+            return Ok(Self::ShortLivedRead(path));
+        }
+        ProbeOptions::parse(arguments).map(Self::Diagnostic)
     }
 }

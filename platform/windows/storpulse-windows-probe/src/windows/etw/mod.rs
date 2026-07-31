@@ -19,6 +19,7 @@ use crate::model::EtwEventReport;
 
 use self::events::{CallbackContext, EventStats, SessionCompletion, event_record_callback};
 use super::NativeFailure;
+use super::process::ProcessIdentity;
 
 const INVALID_PROCESSTRACE_HANDLE: u64 = u64::MAX;
 
@@ -50,30 +51,6 @@ impl TracePropertiesBuffer {
             | EVENT_TRACE_FLAG_THREAD;
         value.properties.LoggerNameOffset = offset_of!(Self, logger_name) as u32;
         value
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn custom_system_logger_does_not_reuse_legacy_kernel_guid() {
-        let session_name: Vec<u16> = "StorPulse.Stage0.Test"
-            .encode_utf16()
-            .chain(std::iter::once(0))
-            .collect();
-        let properties = TracePropertiesBuffer::new(&session_name);
-        let guid = properties.properties.Wnode.Guid;
-
-        assert_eq!(guid.data1, 0);
-        assert_eq!(guid.data2, 0);
-        assert_eq!(guid.data3, 0);
-        assert_eq!(guid.data4, [0; 8]);
-        assert_ne!(
-            properties.properties.LogFileMode & EVENT_TRACE_SYSTEM_LOGGER_MODE,
-            0
-        );
     }
 }
 
@@ -153,7 +130,11 @@ impl TraceSession {
         }
     }
 
-    pub fn stop(mut self, probe_process_id: u32) -> EtwEventReport {
+    pub fn stop(
+        mut self,
+        probe_process_id: u32,
+        short_lived_processes: &[ProcessIdentity],
+    ) -> EtwEventReport {
         // SAFETY：使用启动会话时的句柄、名称和属性缓冲区停止同一会话。
         let stop_status = unsafe {
             ControlTraceW(
@@ -182,7 +163,7 @@ impl TraceSession {
             .stats
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        stats.finish(probe_process_id, completion)
+        stats.finish(probe_process_id, short_lived_processes, completion)
     }
 }
 
@@ -245,5 +226,29 @@ fn consume_trace(
             process_status
         },
         events_lost: logfile.EventsLost,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn custom_system_logger_does_not_reuse_legacy_kernel_guid() {
+        let session_name: Vec<u16> = "StorPulse.Stage0.Test"
+            .encode_utf16()
+            .chain(std::iter::once(0))
+            .collect();
+        let properties = TracePropertiesBuffer::new(&session_name);
+        let guid = properties.properties.Wnode.Guid;
+
+        assert_eq!(guid.data1, 0);
+        assert_eq!(guid.data2, 0);
+        assert_eq!(guid.data3, 0);
+        assert_eq!(guid.data4, [0; 8]);
+        assert_ne!(
+            properties.properties.LogFileMode & EVENT_TRACE_SYSTEM_LOGGER_MODE,
+            0
+        );
     }
 }
