@@ -3,6 +3,9 @@ import SwiftUI
 public struct DashboardView: View {
     @ObservedObject private var monitor: RealtimeMonitor
     @State private var sort: ApplicationSort = .current
+    @State private var selectedApplicationID: RealtimeApplication.ID?
+    @State private var inspectedDisplayName = "进程详情"
+    @State private var inspectorPresented = false
 
     public init(monitor: RealtimeMonitor) {
         self.monitor = monitor
@@ -13,9 +16,9 @@ public struct DashboardView: View {
             summary
             RealtimeApplicationWorkspaceView(
                 applications: sortedApplications,
-                processes: monitor.snapshot?.processes ?? [],
                 ratesAreTrustworthy: monitor.ratesAreTrustworthy,
-                hasSnapshot: monitor.snapshot != nil
+                hasSnapshot: monitor.snapshot != nil,
+                selection: $selectedApplicationID
             )
         }
         .frame(
@@ -23,6 +26,21 @@ public struct DashboardView: View {
             minHeight: 520
         )
         .background(Color(nsColor: .windowBackgroundColor))
+        .inspector(isPresented: $inspectorPresented) {
+            ApplicationProcessesDetailView(
+                displayName: selectedApplication?.displayName
+                    ?? inspectedDisplayName,
+                hasSelection: selectedApplicationID != nil,
+                application: selectedApplication,
+                processes: selectedProcesses,
+                ratesAreTrustworthy: monitor.ratesAreTrustworthy
+            )
+            .inspectorColumnWidth(
+                min: RealtimeApplicationLayout.inspectorMinimumWidth,
+                ideal: RealtimeApplicationLayout.inspectorIdealWidth,
+                max: RealtimeApplicationLayout.inspectorMaximumWidth
+            )
+        }
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 observationButton
@@ -34,7 +52,17 @@ public struct DashboardView: View {
                 .pickerStyle(.menu)
                 .frame(width: 150)
                 .help("应用排序方式")
+                inspectorButton
             }
+        }
+        .onChange(of: selectedApplicationID) { _, applicationID in
+            guard let applicationID else { return }
+            if let application = sortedApplications.first(where: {
+                $0.applicationID == applicationID
+            }) {
+                inspectedDisplayName = application.displayName
+            }
+            inspectorPresented = true
         }
     }
 
@@ -173,12 +201,45 @@ public struct DashboardView: View {
         )
     }
 
+    private var inspectorButton: some View {
+        Button {
+            inspectorPresented.toggle()
+        } label: {
+            Label("进程检查器", systemImage: "sidebar.trailing")
+        }
+        .help(
+            inspectorPresented ? "隐藏进程检查器" : "显示进程检查器"
+        )
+        .accessibilityLabel(
+            inspectorPresented ? "隐藏进程检查器" : "显示进程检查器"
+        )
+    }
+
     private var trustedDeviceRate: IORate? {
         monitor.ratesAreTrustworthy ? monitor.snapshot?.deviceRate : nil
     }
 
     private var sortedApplications: [RealtimeApplication] {
         IOPresentation.sorted(monitor.snapshot?.applications ?? [], by: sort)
+    }
+
+    private var selectedApplication: RealtimeApplication? {
+        guard let selectedApplicationID else { return nil }
+        return monitor.snapshot?.applications.first {
+            $0.applicationID == selectedApplicationID
+        }
+    }
+
+    private var selectedProcesses: [RealtimeProcess] {
+        guard let selectedApplication else { return [] }
+        let identities = Set(selectedApplication.processIdentities)
+        return (monitor.snapshot?.processes ?? [])
+            .filter { identities.contains($0.identity) }
+            .sorted { lhs, rhs in
+                if lhs.isHelper != rhs.isHelper { return !lhs.isHelper }
+                return lhs.executableName.localizedStandardCompare(rhs.executableName)
+                    == .orderedAscending
+            }
     }
 
     private func summaryMetric(title: String, value: Double?, symbol: String) -> some View {

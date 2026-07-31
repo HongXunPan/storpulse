@@ -50,17 +50,65 @@ func workspaceModelReusesSelection() {
     #expect(model.currentModule == .realtime)
 }
 
-@Test("实时应用列和进程入口适配最小详情宽度")
-func realtimeApplicationColumnsFitMinimumDetailWidth() {
+@Test("实时表格与检查器宽度遵守窗口预算")
+func realtimeTableAndInspectorWidthsFitWindowBudget() {
     #expect(
         RealtimeApplicationLayout.minimumRequiredWidth
             <= RealtimeApplicationLayout.minimumDetailWidth
     )
+    #expect(
+        RealtimeApplicationLayout.inspectorMinimumWidth
+            <= RealtimeApplicationLayout.inspectorIdealWidth
+    )
+    #expect(
+        RealtimeApplicationLayout.inspectorIdealWidth
+            <= RealtimeApplicationLayout.inspectorMaximumWidth
+    )
+}
+
+@Test("实时表格重排后按应用身份恢复选择")
+func realtimeTableRestoresSelectionByApplicationIdentity() {
+    let first = RealtimeApplicationTableSnapshot(
+        applications: [
+            realtimeApplicationFixture(id: "com.example.a"),
+            realtimeApplicationFixture(id: "com.example.b"),
+        ],
+        ratesAreTrustworthy: true
+    )
+    let reordered = RealtimeApplicationTableSnapshot(
+        applications: [
+            realtimeApplicationFixture(id: "com.example.b"),
+            realtimeApplicationFixture(id: "com.example.a"),
+        ],
+        ratesAreTrustworthy: true
+    )
+
+    #expect(first.index(of: "com.example.a") == 0)
+    #expect(reordered.index(of: "com.example.a") == 1)
+    #expect(reordered.index(of: "com.example.missing") == nil)
 }
 
 @MainActor
 private final class StatusMenuActionTarget: NSObject {
     @objc func performAction() {}
+}
+
+private func realtimeApplicationFixture(id: String) -> RealtimeApplication {
+    RealtimeApplication(
+        applicationID: id,
+        displayName: id,
+        processCount: 1,
+        helperCount: 0,
+        current: IORate(
+            readBytesPerSecond: 1_024,
+            writeBytesPerSecond: 2_048
+        ),
+        averageLastMinute: nil,
+        runReadBytes: 4_096,
+        runWriteBytes: 8_192,
+        continuousIODurationMilliseconds: 1_000,
+        processIdentities: []
+    )
 }
 
 private actor StatusMenuFixtureEngine: StorPulseEngineClient {

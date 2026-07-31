@@ -1,82 +1,92 @@
 import SwiftUI
 
 struct ApplicationProcessesDetailView: View {
+    private enum MetricScope: String, CaseIterable, Identifiable {
+        case current = "当前"
+        case recentAverage = "一分钟"
+        case runTotal = "累计"
+
+        var id: String { rawValue }
+    }
+
     let displayName: String
+    let hasSelection: Bool
     let application: RealtimeApplication?
     let processes: [RealtimeProcess]
     let ratesAreTrustworthy: Bool
-    let close: () -> Void
+
+    @State private var metricScope: MetricScope = .current
 
     var body: some View {
         VStack(spacing: 0) {
-            detailHeader
-            Divider()
-            processHeader
-            Divider()
-            processContent
+            if !hasSelection {
+                selectionPrompt
+            } else {
+                inspectorHeader
+                Divider()
+                if application == nil {
+                    unavailableContent
+                } else {
+                    metricPicker
+                    processSectionHeader
+                    Divider()
+                    processContent
+                }
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.35))
     }
 
-    private var detailHeader: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(displayName)
-                    .font(.headline)
-                    .lineLimit(1)
-                    .help(displayName)
-                Text(processCoverage)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Button(action: close) {
-                Label("关闭进程详情", systemImage: "xmark")
-            }
-            .labelStyle(.iconOnly)
-            .buttonStyle(.borderless)
-            .keyboardShortcut(.cancelAction)
-            .help("关闭进程详情")
-            .accessibilityLabel("关闭 \(displayName) 的进程详情")
+    private var inspectorHeader: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(displayName)
+                .font(.title3.weight(.semibold))
+                .lineLimit(1)
+                .help(displayName)
+            Text(processCoverage)
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
-        .padding(.horizontal, RealtimeApplicationLayout.horizontalInset)
-        .padding(.vertical, 9)
-        .background(Color(nsColor: .controlBackgroundColor))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
     }
 
-    private var processHeader: some View {
-        RealtimeApplicationColumns {
-            Text("进程")
-        } currentRate: {
-            Text("当前速率")
-        } recentAverage: {
-            Text("一分钟均值")
-        } runTotal: {
-            Text("本次累计")
-        } trailing: {
-            Text("PID")
-        }
-        .font(.caption.weight(.medium))
-        .foregroundStyle(.secondary)
-        .lineLimit(1)
-        .padding(.horizontal, RealtimeApplicationLayout.horizontalInset)
-        .padding(.vertical, 6)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            "进程数据列：进程、当前速率、一分钟均值、本次累计、PID"
+    private var selectionPrompt: some View {
+        ContentUnavailableView(
+            "选择一个应用",
+            systemImage: "sidebar.trailing",
+            description: Text("从实时表格选择应用以查看它的进程。")
         )
+    }
+
+    private var metricPicker: some View {
+        Picker("进程指标", selection: $metricScope) {
+            ForEach(MetricScope.allCases) { scope in
+                Text(scope.rawValue).tag(scope)
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+
+    private var processSectionHeader: some View {
+        HStack {
+            Text("进程")
+                .font(.headline)
+            Spacer()
+            Text("\(processes.count)")
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 8)
     }
 
     @ViewBuilder
     private var processContent: some View {
-        if application == nil {
-            ContentUnavailableView(
-                "应用已离开当前采样",
-                systemImage: "xmark.circle",
-                description: Text("该应用可能已经退出；关闭详情后可选择其他应用。")
-            )
-        } else if processes.isEmpty {
+        if processes.isEmpty {
             ContentUnavailableView(
                 "暂无可读进程",
                 systemImage: "lock",
@@ -87,16 +97,9 @@ struct ApplicationProcessesDetailView: View {
                 LazyVStack(spacing: 0) {
                     ForEach(processes) { process in
                         processRow(process)
-                            .padding(
-                                .horizontal,
-                                RealtimeApplicationLayout.horizontalInset
-                            )
                         if process.id != processes.last?.id {
                             Divider()
-                                .padding(
-                                    .leading,
-                                    RealtimeApplicationLayout.horizontalInset
-                                )
+                                .padding(.leading, 16)
                         }
                     }
                 }
@@ -105,8 +108,16 @@ struct ApplicationProcessesDetailView: View {
         }
     }
 
+    private var unavailableContent: some View {
+        ContentUnavailableView(
+            "应用已离开当前采样",
+            systemImage: "xmark.circle",
+            description: Text("该应用可能已经退出；请从应用表格选择其他项目。")
+        )
+    }
+
     private func processRow(_ process: RealtimeProcess) -> some View {
-        RealtimeApplicationColumns {
+        HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 5) {
                     Text(process.executableName)
@@ -120,35 +131,18 @@ struct ApplicationProcessesDetailView: View {
                             .background(.quaternary, in: Capsule())
                     }
                 }
-                Text(processRelationship(process))
+                Text(processContext(process))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
-        } currentRate: {
-            RealtimeRatePairView(
-                title: "当前",
-                rate: trusted(process.current),
-                textStyle: .caption2
-            )
-        } recentAverage: {
-            RealtimeRatePairView(
-                title: "一分钟",
-                rate: process.averageLastMinute,
-                textStyle: .caption2
-            )
-        } runTotal: {
-            RealtimeTotalPairView(
-                readBytes: process.runReadBytes,
-                writeBytes: process.runWriteBytes,
-                textStyle: .caption2
-            )
-        } trailing: {
-            Text("\(process.identity.pid)")
-                .font(.caption2.monospacedDigit())
-                .lineLimit(1)
+            Spacer(minLength: 8)
+            processMetric(process)
         }
-        .padding(.vertical, 6)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 9)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(processAccessibilityLabel(process))
     }
 
     private var processCoverage: String {
@@ -159,15 +153,48 @@ struct ApplicationProcessesDetailView: View {
         return "\(processes.count) 个可见进程 · \(application.helperCount) 个 Helper"
     }
 
-    private func processRelationship(_ process: RealtimeProcess) -> String {
-        if process.isHelper { return "归并到当前应用" }
+    private func processContext(_ process: RealtimeProcess) -> String {
+        if process.isHelper { return "PID \(process.identity.pid)" }
         if let launcher = process.launchedByApplicationID, launcher != process.applicationID {
-            return "由 \(launcher) 启动，统计保持独立"
+            return "独立子任务 · PID \(process.identity.pid)"
         }
-        return "独立进程身份：PID + 启动时间"
+        return "PID \(process.identity.pid)"
     }
 
-    private func trusted(_ rate: IORate?) -> IORate? {
-        ratesAreTrustworthy ? rate : nil
+    @ViewBuilder
+    private func processMetric(_ process: RealtimeProcess) -> some View {
+        switch metricScope {
+        case .current:
+            RealtimeRatePairView(
+                title: "当前",
+                rate: ratesAreTrustworthy ? process.current : nil,
+                textStyle: .caption
+            )
+        case .recentAverage:
+            RealtimeRatePairView(
+                title: "一分钟",
+                rate: process.averageLastMinute,
+                textStyle: .caption
+            )
+        case .runTotal:
+            RealtimeTotalPairView(
+                readBytes: process.runReadBytes,
+                writeBytes: process.runWriteBytes,
+                textStyle: .caption
+            )
+        }
+    }
+
+    private func processAccessibilityLabel(_ process: RealtimeProcess) -> String {
+        let prefix = "\(process.executableName)，PID \(process.identity.pid)"
+        switch metricScope {
+        case .current:
+            let rate = ratesAreTrustworthy ? process.current : nil
+            return "\(prefix)，当前读取 \(IOPresentation.rate(rate?.readBytesPerSecond))，写入 \(IOPresentation.rate(rate?.writeBytesPerSecond))"
+        case .recentAverage:
+            return "\(prefix)，一分钟读取 \(IOPresentation.rate(process.averageLastMinute?.readBytesPerSecond))，写入 \(IOPresentation.rate(process.averageLastMinute?.writeBytesPerSecond))"
+        case .runTotal:
+            return "\(prefix)，累计读取 \(IOPresentation.bytes(process.runReadBytes))，写入 \(IOPresentation.bytes(process.runWriteBytes))"
+        }
     }
 }

@@ -3,80 +3,23 @@ import SwiftUI
 enum RealtimeApplicationLayout {
     static let minimumDetailWidth: CGFloat = 700
     static let horizontalInset: CGFloat = 16
-    static let columnSpacing: CGFloat = 10
-    static let applicationMinimumWidth: CGFloat = 150
-    static let currentRateWidth: CGFloat = 112
-    static let recentAverageWidth: CGFloat = 112
-    static let runTotalWidth: CGFloat = 108
-    static let trailingWidth: CGFloat = 84
+    static let applicationColumnMinimumWidth: CGFloat = 170
+    static let applicationColumnIdealWidth: CGFloat = 230
+    static let applicationColumnMaximumWidth: CGFloat = 360
+    static let currentRateWidth: CGFloat = 118
+    static let recentAverageWidth: CGFloat = 118
+    static let runTotalWidth: CGFloat = 112
+    static let durationWidth: CGFloat = 88
+    static let inspectorMinimumWidth: CGFloat = 320
+    static let inspectorIdealWidth: CGFloat = 360
+    static let inspectorMaximumWidth: CGFloat = 460
 
     static let minimumRequiredWidth =
-        horizontalInset * 2
-            + applicationMinimumWidth
+        applicationColumnMinimumWidth
             + currentRateWidth
             + recentAverageWidth
             + runTotalWidth
-            + trailingWidth
-            + columnSpacing * 4
-}
-
-struct RealtimeApplicationColumns<
-    ApplicationContent: View,
-    CurrentRateContent: View,
-    RecentAverageContent: View,
-    RunTotalContent: View,
-    TrailingContent: View
->: View {
-    private let application: ApplicationContent
-    private let currentRate: CurrentRateContent
-    private let recentAverage: RecentAverageContent
-    private let runTotal: RunTotalContent
-    private let trailing: TrailingContent
-
-    init(
-        @ViewBuilder application: () -> ApplicationContent,
-        @ViewBuilder currentRate: () -> CurrentRateContent,
-        @ViewBuilder recentAverage: () -> RecentAverageContent,
-        @ViewBuilder runTotal: () -> RunTotalContent,
-        @ViewBuilder trailing: () -> TrailingContent
-    ) {
-        self.application = application()
-        self.currentRate = currentRate()
-        self.recentAverage = recentAverage()
-        self.runTotal = runTotal()
-        self.trailing = trailing()
-    }
-
-    var body: some View {
-        HStack(spacing: RealtimeApplicationLayout.columnSpacing) {
-            application
-                .frame(
-                    minWidth: RealtimeApplicationLayout.applicationMinimumWidth,
-                    maxWidth: .infinity,
-                    alignment: .leading
-                )
-            currentRate
-                .frame(
-                    width: RealtimeApplicationLayout.currentRateWidth,
-                    alignment: .trailing
-                )
-            recentAverage
-                .frame(
-                    width: RealtimeApplicationLayout.recentAverageWidth,
-                    alignment: .trailing
-                )
-            runTotal
-                .frame(
-                    width: RealtimeApplicationLayout.runTotalWidth,
-                    alignment: .trailing
-                )
-            trailing
-                .frame(
-                    width: RealtimeApplicationLayout.trailingWidth,
-                    alignment: .trailing
-                )
-        }
-    }
+            + durationWidth
 }
 
 struct RealtimeRatePairView: View {
