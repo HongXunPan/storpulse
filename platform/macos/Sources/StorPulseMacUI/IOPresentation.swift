@@ -1,6 +1,7 @@
 import Foundation
 
 public enum ApplicationSort: String, CaseIterable, Identifiable, Sendable {
+    case application = "应用"
     case current = "当前速度"
     case recentAverage = "一分钟均值"
     case runTotal = "本次累计"
@@ -9,24 +10,58 @@ public enum ApplicationSort: String, CaseIterable, Identifiable, Sendable {
     public var id: String { rawValue }
 }
 
+public struct ApplicationSortOrder: Equatable, Sendable {
+    public let criterion: ApplicationSort
+    public let ascending: Bool
+
+    public init(criterion: ApplicationSort, ascending: Bool) {
+        self.criterion = criterion
+        self.ascending = ascending
+    }
+
+    public static let defaultOrder = ApplicationSortOrder(
+        criterion: .current,
+        ascending: false
+    )
+}
+
 public enum IOPresentation {
+    public static func filtered(
+        _ applications: [RealtimeApplication],
+        matching searchText: String
+    ) -> [RealtimeApplication] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return applications }
+        return applications.filter {
+            $0.displayName.localizedCaseInsensitiveContains(query)
+        }
+    }
+
     public static func sorted(
         _ applications: [RealtimeApplication],
         by sort: ApplicationSort
     ) -> [RealtimeApplication] {
+        sorted(
+            applications,
+            by: ApplicationSortOrder(
+                criterion: sort,
+                ascending: sort == .application
+            )
+        )
+    }
+
+    public static func sorted(
+        _ applications: [RealtimeApplication],
+        by order: ApplicationSortOrder
+    ) -> [RealtimeApplication] {
         applications.sorted { lhs, rhs in
-            switch sort {
-            case .current:
-                return totalRate(lhs.current) > totalRate(rhs.current)
-            case .recentAverage:
-                return totalRate(lhs.averageLastMinute) > totalRate(rhs.averageLastMinute)
-            case .runTotal:
-                return lhs.runReadBytes + lhs.runWriteBytes
-                    > rhs.runReadBytes + rhs.runWriteBytes
-            case .duration:
-                return lhs.continuousIODurationMilliseconds
-                    > rhs.continuousIODurationMilliseconds
+            let comparison = compare(lhs, rhs, by: order.criterion)
+            if comparison == .orderedSame {
+                return stableIdentityComparison(lhs, rhs) == .orderedAscending
             }
+            return order.ascending
+                ? comparison == .orderedAscending
+                : comparison == .orderedDescending
         }
     }
 
@@ -55,6 +90,60 @@ public enum IOPresentation {
     private static func totalRate(_ rate: IORate?) -> Double {
         guard let rate else { return 0 }
         return rate.readBytesPerSecond + rate.writeBytesPerSecond
+    }
+
+    private static func compare(
+        _ lhs: RealtimeApplication,
+        _ rhs: RealtimeApplication,
+        by criterion: ApplicationSort
+    ) -> ComparisonResult {
+        switch criterion {
+        case .application:
+            lhs.displayName.localizedStandardCompare(rhs.displayName)
+        case .current:
+            compareValues(totalRate(lhs.current), totalRate(rhs.current))
+        case .recentAverage:
+            compareValues(
+                totalRate(lhs.averageLastMinute),
+                totalRate(rhs.averageLastMinute)
+            )
+        case .runTotal:
+            compareValues(totalBytes(lhs), totalBytes(rhs))
+        case .duration:
+            compareValues(
+                lhs.continuousIODurationMilliseconds,
+                rhs.continuousIODurationMilliseconds
+            )
+        }
+    }
+
+    private static func compareValues<T: Comparable>(
+        _ lhs: T,
+        _ rhs: T
+    ) -> ComparisonResult {
+        if lhs < rhs { return .orderedAscending }
+        if lhs > rhs { return .orderedDescending }
+        return .orderedSame
+    }
+
+    private static func totalBytes(_ application: RealtimeApplication) -> UInt64 {
+        let result = application.runReadBytes.addingReportingOverflow(
+            application.runWriteBytes
+        )
+        return result.overflow ? .max : result.partialValue
+    }
+
+    private static func stableIdentityComparison(
+        _ lhs: RealtimeApplication,
+        _ rhs: RealtimeApplication
+    ) -> ComparisonResult {
+        let displayNameComparison = lhs.displayName.localizedStandardCompare(
+            rhs.displayName
+        )
+        guard displayNameComparison == .orderedSame else {
+            return displayNameComparison
+        }
+        return lhs.applicationID.localizedStandardCompare(rhs.applicationID)
     }
 }
 

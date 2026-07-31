@@ -2,7 +2,8 @@ import SwiftUI
 
 public struct DashboardView: View {
     @ObservedObject private var monitor: RealtimeMonitor
-    @State private var sort: ApplicationSort = .current
+    @State private var sortOrder = ApplicationSortOrder.defaultOrder
+    @State private var searchText = ""
     @State private var selectedApplicationID: RealtimeApplication.ID?
     @State private var inspectedDisplayName = "进程详情"
     @State private var inspectorPresented = false
@@ -15,10 +16,12 @@ public struct DashboardView: View {
         VStack(spacing: 0) {
             summary
             RealtimeApplicationWorkspaceView(
-                applications: sortedApplications,
+                applications: visibleApplications,
                 ratesAreTrustworthy: monitor.ratesAreTrustworthy,
                 hasSnapshot: monitor.snapshot != nil,
-                selection: $selectedApplicationID
+                isSearching: isSearching,
+                selection: $selectedApplicationID,
+                sortOrder: $sortOrder
             )
         }
         .frame(
@@ -44,20 +47,17 @@ public struct DashboardView: View {
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 observationButton
-                Picker("排序", selection: $sort) {
-                    ForEach(ApplicationSort.allCases) { item in
-                        Text(item.rawValue).tag(item)
-                    }
-                }
-                .pickerStyle(.menu)
-                .frame(width: 150)
-                .help("应用排序方式")
                 inspectorButton
             }
         }
+        .searchable(
+            text: $searchText,
+            placement: .toolbar,
+            prompt: "搜索应用"
+        )
         .onChange(of: selectedApplicationID) { _, applicationID in
             guard let applicationID else { return }
-            if let application = sortedApplications.first(where: {
+            if let application = visibleApplications.first(where: {
                 $0.applicationID == applicationID
             }) {
                 inspectedDisplayName = application.displayName
@@ -219,8 +219,16 @@ public struct DashboardView: View {
         monitor.ratesAreTrustworthy ? monitor.snapshot?.deviceRate : nil
     }
 
-    private var sortedApplications: [RealtimeApplication] {
-        IOPresentation.sorted(monitor.snapshot?.applications ?? [], by: sort)
+    private var visibleApplications: [RealtimeApplication] {
+        let filtered = IOPresentation.filtered(
+            monitor.snapshot?.applications ?? [],
+            matching: searchText
+        )
+        return IOPresentation.sorted(filtered, by: sortOrder)
+    }
+
+    private var isSearching: Bool {
+        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private var selectedApplication: RealtimeApplication? {

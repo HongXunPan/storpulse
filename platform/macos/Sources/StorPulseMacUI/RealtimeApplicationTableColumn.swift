@@ -35,6 +35,50 @@ enum RealtimeApplicationTableColumn: String, CaseIterable {
         }
     }
 
+    var sortCriterion: ApplicationSort {
+        switch self {
+        case .application: .application
+        case .current: .current
+        case .recentAverage: .recentAverage
+        case .runTotal: .runTotal
+        case .duration: .duration
+        }
+    }
+
+    var sortDescriptorPrototype: NSSortDescriptor {
+        NSSortDescriptor(
+            key: rawValue,
+            ascending: self == .application
+        )
+    }
+
+    static func sortDescriptor(
+        for order: ApplicationSortOrder
+    ) -> NSSortDescriptor {
+        let column = RealtimeApplicationTableColumn(
+            sortCriterion: order.criterion
+        )
+        return NSSortDescriptor(
+            key: column.rawValue,
+            ascending: order.ascending
+        )
+    }
+
+    static func sortOrder(
+        from descriptor: NSSortDescriptor
+    ) -> ApplicationSortOrder? {
+        guard
+            let key = descriptor.key,
+            let column = RealtimeApplicationTableColumn(rawValue: key)
+        else {
+            return nil
+        }
+        return ApplicationSortOrder(
+            criterion: column.sortCriterion,
+            ascending: descriptor.ascending
+        )
+    }
+
     var minimumWidth: CGFloat {
         switch self {
         case .application:
@@ -134,6 +178,16 @@ enum RealtimeApplicationTableColumn: String, CaseIterable {
                 secondary: nil,
                 accessibilityLabel: "持续时长 \(row.duration)"
             )
+        }
+    }
+
+    private init(sortCriterion: ApplicationSort) {
+        switch sortCriterion {
+        case .application: self = .application
+        case .current: self = .current
+        case .recentAverage: self = .recentAverage
+        case .runTotal: self = .runTotal
+        case .duration: self = .duration
         }
     }
 }

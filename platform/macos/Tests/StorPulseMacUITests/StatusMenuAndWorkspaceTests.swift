@@ -89,6 +89,30 @@ func realtimeTableRestoresSelectionByApplicationIdentity() {
 }
 
 @MainActor
+@Test("实时表格列头使用原生排序描述符映射")
+func realtimeTableColumnsUseNativeSortDescriptors() throws {
+    for column in RealtimeApplicationTableColumn.allCases {
+        let descriptor = column.sortDescriptorPrototype
+        let order = try #require(
+            RealtimeApplicationTableColumn.sortOrder(from: descriptor)
+        )
+
+        #expect(order.criterion == column.sortCriterion)
+        #expect(order.ascending == (column == .application))
+    }
+
+    let currentAscending = ApplicationSortOrder(
+        criterion: .current,
+        ascending: true
+    )
+    let descriptor = RealtimeApplicationTableColumn.sortDescriptor(
+        for: currentAscending
+    )
+    #expect(descriptor.key == RealtimeApplicationTableColumn.current.rawValue)
+    #expect(descriptor.ascending)
+}
+
+@MainActor
 private final class StatusMenuActionTarget: NSObject {
     @objc func performAction() {}
 }

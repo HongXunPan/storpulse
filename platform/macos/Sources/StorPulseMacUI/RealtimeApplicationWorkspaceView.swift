@@ -4,7 +4,9 @@ struct RealtimeApplicationWorkspaceView: View {
     let applications: [RealtimeApplication]
     let ratesAreTrustworthy: Bool
     let hasSnapshot: Bool
+    let isSearching: Bool
     @Binding var selection: RealtimeApplication.ID?
+    @Binding var sortOrder: ApplicationSortOrder
 
     var body: some View {
         RealtimeApplicationTableView(
@@ -12,7 +14,8 @@ struct RealtimeApplicationWorkspaceView: View {
                 applications: applications,
                 ratesAreTrustworthy: ratesAreTrustworthy
             ),
-            selection: $selection
+            selection: $selection,
+            sortOrder: $sortOrder
         )
         .overlay {
             emptyState
@@ -26,6 +29,12 @@ struct RealtimeApplicationWorkspaceView: View {
                 "等待采样",
                 systemImage: "waveform.path.ecg",
                 description: Text("至少需要两个采样点才能计算实时速度。")
+            )
+        } else if applications.isEmpty, isSearching {
+            ContentUnavailableView(
+                "未找到匹配的应用",
+                systemImage: "magnifyingglass",
+                description: Text("请尝试其他应用名称。")
             )
         } else if applications.isEmpty {
             ContentUnavailableView(

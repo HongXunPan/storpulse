@@ -5,14 +5,18 @@ import SwiftUI
 struct RealtimeApplicationTableView: NSViewRepresentable {
     let snapshot: RealtimeApplicationTableSnapshot
     @Binding var selection: RealtimeApplication.ID?
+    @Binding var sortOrder: ApplicationSortOrder
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(selection: $selection)
+        Coordinator(
+            selection: $selection,
+            sortOrder: $sortOrder
+        )
     }
 
     func makeNSView(context: Context) -> NSScrollView {
         let tableView = NSTableView()
-        configure(tableView)
+        configure(tableView, sortOrder: sortOrder)
         tableView.dataSource = context.coordinator
         tableView.delegate = context.coordinator
         context.coordinator.attach(tableView)
@@ -29,9 +33,11 @@ struct RealtimeApplicationTableView: NSViewRepresentable {
 
     func updateNSView(_: NSScrollView, context: Context) {
         context.coordinator.selection = $selection
+        context.coordinator.sortBridge.binding = $sortOrder
         context.coordinator.enqueue(
             snapshot: snapshot,
-            selectedApplicationID: selection
+            selectedApplicationID: selection,
+            sortOrder: sortOrder
         )
     }
 
@@ -42,7 +48,10 @@ struct RealtimeApplicationTableView: NSViewRepresentable {
         coordinator.detach()
     }
 
-    private func configure(_ tableView: NSTableView) {
+    private func configure(
+        _ tableView: NSTableView,
+        sortOrder: ApplicationSortOrder
+    ) {
         tableView.allowsEmptySelection = true
         tableView.allowsMultipleSelection = false
         tableView.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
@@ -59,8 +68,12 @@ struct RealtimeApplicationTableView: NSViewRepresentable {
             tableColumn.width = column.idealWidth
             tableColumn.maxWidth = column.maximumWidth
             tableColumn.resizingMask = [.autoresizingMask, .userResizingMask]
+            tableColumn.sortDescriptorPrototype = column.sortDescriptorPrototype
             tableView.addTableColumn(tableColumn)
         }
+        tableView.sortDescriptors = [
+            RealtimeApplicationTableColumn.sortDescriptor(for: sortOrder),
+        ]
     }
 
     @MainActor
@@ -68,9 +81,11 @@ struct RealtimeApplicationTableView: NSViewRepresentable {
         private struct PendingUpdate {
             let snapshot: RealtimeApplicationTableSnapshot
             let selectedApplicationID: String?
+            let sortOrder: ApplicationSortOrder
         }
 
         var selection: Binding<String?>
+        let sortBridge: RealtimeApplicationTableSortBridge
 
         private weak var tableView: NSTableView?
         private var snapshot = RealtimeApplicationTableSnapshot(
@@ -82,8 +97,14 @@ struct RealtimeApplicationTableView: NSViewRepresentable {
         private var applyingSnapshot = false
         private var selectionWriteGeneration = 0
 
-        init(selection: Binding<String?>) {
+        init(
+            selection: Binding<String?>,
+            sortOrder: Binding<ApplicationSortOrder>
+        ) {
             self.selection = selection
+            sortBridge = RealtimeApplicationTableSortBridge(
+                binding: sortOrder
+            )
         }
 
         func attach(_ tableView: NSTableView) {
@@ -92,6 +113,7 @@ struct RealtimeApplicationTableView: NSViewRepresentable {
 
         func detach() {
             selectionWriteGeneration += 1
+            sortBridge.invalidate()
             pendingUpdate = nil
             tableView?.delegate = nil
             tableView?.dataSource = nil
@@ -100,11 +122,13 @@ struct RealtimeApplicationTableView: NSViewRepresentable {
 
         func enqueue(
             snapshot: RealtimeApplicationTableSnapshot,
-            selectedApplicationID: String?
+            selectedApplicationID: String?,
+            sortOrder: ApplicationSortOrder
         ) {
             pendingUpdate = PendingUpdate(
                 snapshot: snapshot,
-                selectedApplicationID: selectedApplicationID
+                selectedApplicationID: selectedApplicationID,
+                sortOrder: sortOrder
             )
             guard !updateScheduled else { return }
             updateScheduled = true
@@ -160,6 +184,22 @@ struct RealtimeApplicationTableView: NSViewRepresentable {
             scheduleSelectionWrite(selectedID)
         }
 
+        func tableView(
+            _ tableView: NSTableView,
+            sortDescriptorsDidChange _: [NSSortDescriptor]
+        ) {
+            guard
+                !applyingSnapshot,
+                let descriptor = tableView.sortDescriptors.first,
+                let nextOrder = RealtimeApplicationTableColumn.sortOrder(
+                    from: descriptor
+                )
+            else {
+                return
+            }
+            sortBridge.scheduleWrite(nextOrder)
+        }
+
         private func applyPendingUpdate() {
             updateScheduled = false
             guard let tableView, let update = pendingUpdate else { return }
@@ -170,6 +210,7 @@ struct RealtimeApplicationTableView: NSViewRepresentable {
             snapshot = update.snapshot
 
             applyingSnapshot = true
+            sortBridge.synchronize(update.sortOrder, in: tableView)
             if previousIDs == nextIDs {
                 tableView.reloadData(
                     forRowIndexes: IndexSet(integersIn: 0 ..< snapshot.rows.count),
