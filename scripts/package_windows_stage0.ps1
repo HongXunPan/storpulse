@@ -2,7 +2,7 @@
     [Parameter(Mandatory = $true)] [string]$BinaryPath,
     [Parameter(Mandatory = $true)] [string]$OutputDirectory,
     [Parameter(Mandatory = $true)] [string]$CommitSha,
-    [string]$PdbPath = ""
+    [string[]]$PdbPaths = @()
 )
 
 Set-StrictMode -Version Latest
@@ -13,12 +13,15 @@ $BinaryPath = [System.IO.Path]::GetFullPath($BinaryPath)
 if (-not (Test-Path -LiteralPath $BinaryPath -PathType Leaf)) {
     throw "找不到 Windows 探针构建产物：$BinaryPath"
 }
-if ($PdbPath -ne "") {
-    $PdbPath = [System.IO.Path]::GetFullPath($PdbPath)
-    if (-not (Test-Path -LiteralPath $PdbPath -PathType Leaf)) {
-        throw "找不到 Windows 探针调试符号：$PdbPath"
+$ResolvedPdbPaths = @(
+    foreach ($PdbPath in $PdbPaths) {
+        $ResolvedPdbPath = [System.IO.Path]::GetFullPath($PdbPath)
+        if (-not (Test-Path -LiteralPath $ResolvedPdbPath -PathType Leaf)) {
+            throw "找不到 Windows 探针调试符号：$ResolvedPdbPath"
+        }
+        $ResolvedPdbPath
     }
-}
+)
 $OutputDirectory = [System.IO.Path]::GetFullPath($OutputDirectory)
 $PackageRoot = Join-Path $OutputDirectory "storpulse-windows-stage0-x64"
 $ScriptsDirectory = Join-Path $PackageRoot "scripts"
@@ -65,13 +68,15 @@ if (Test-Path $ArchivePath) {
 }
 Compress-Archive -Path (Join-Path $PackageRoot "*") -DestinationPath $ArchivePath -CompressionLevel Optimal
 
-if ($PdbPath -ne "" -and (Test-Path $PdbPath)) {
+if ($ResolvedPdbPaths.Count -gt 0) {
     $SymbolsDirectory = Join-Path $OutputDirectory "symbols"
     if (Test-Path $SymbolsDirectory) {
         Remove-Item -Recurse -Force -LiteralPath $SymbolsDirectory
     }
     New-Item -ItemType Directory -Force -Path $SymbolsDirectory | Out-Null
-    Copy-Item -LiteralPath $PdbPath -Destination $SymbolsDirectory
+    foreach ($ResolvedPdbPath in $ResolvedPdbPaths) {
+        Copy-Item -LiteralPath $ResolvedPdbPath -Destination $SymbolsDirectory
+    }
     [System.IO.File]::WriteAllText(
         (Join-Path $SymbolsDirectory "commit.txt"),
         ("{0}`n" -f $CommitSha),

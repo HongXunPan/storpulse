@@ -61,9 +61,32 @@ jobs:
         run: |
           $CargoMetadata = cargo metadata --locked --no-deps --format-version 1 | ConvertFrom-Json
           $ReleaseDirectory = Join-Path ([string]$CargoMetadata.target_directory) "x86_64-pc-windows-msvc/release"
+          $ProbePdbFiles = @(
+            Get-ChildItem -LiteralPath $ReleaseDirectory -Recurse -File -Filter "*.pdb" |
+              Where-Object {
+                $_.BaseName -like "storpulse-windows-probe*" -or
+                $_.BaseName -like "storpulse_windows_probe*"
+              } |
+              Sort-Object FullName
+          )
+          if ($ProbePdbFiles.Count -eq 0) {
+            $ObservedPdbFiles = @(
+              Get-ChildItem -LiteralPath $ReleaseDirectory -Recurse -File -Filter "*.pdb" |
+                Sort-Object FullName |
+                ForEach-Object { $_.FullName }
+            )
+            $Observed = if ($ObservedPdbFiles.Count -eq 0) {
+              "无"
+            }
+            else {
+              $ObservedPdbFiles -join "; "
+            }
+            throw "release 目录中没有 StorPulse 探针 PDB；已发现的 PDB：$Observed"
+          }
+          Write-Host "发现 StorPulse 探针 PDB：$($ProbePdbFiles.FullName -join '; ')"
           ./scripts/package_windows_stage0.ps1 `
             -BinaryPath (Join-Path $ReleaseDirectory "storpulse-windows-probe.exe") `
-            -PdbPath (Join-Path $ReleaseDirectory "storpulse-windows-probe.pdb") `
+            -PdbPaths $ProbePdbFiles.FullName `
             -OutputDirectory ".codex-tmp/windows-stage0-artifacts" `
             -CommitSha "${{ github.sha }}"
 
