@@ -4,9 +4,9 @@ StorPulse 是面向 macOS、Windows 和后续 Linux 的本地只读磁盘 I/O �
 
 ## 当前状态
 
-- 当前阶段：macOS Intel 开发者预览阶段 3；Windows 阶段 0 协作诊断实现待实机验证。
+- 当前阶段：macOS Intel 开发者预览阶段 3；Windows 10 22H2 x64 候选权限门禁已收口但未通过标准权限要求。
 - 当前能力：macOS 采集、Rust 共享内核、状态栏与实时详细视图，以及默认关闭的低写入历史、显式提醒和隐私摘要导出。
-- 未验证：Windows 实机门禁、Apple Silicon、旧版 macOS、App Sandbox、签名、安装包和长期运行。
+- 未验证：Windows 11 与 Windows 增强权限方案、Apple Silicon、旧版 macOS、App Sandbox、签名、安装包和长期运行。
 - 不承诺：文件级精确归因、SSD 剩余寿命、NAND 写放大或自动干预其他应用。
 
 ## 隐私与权限
