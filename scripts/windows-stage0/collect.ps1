@@ -12,6 +12,7 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+. (Join-Path $PSScriptRoot "collect-environment.ps1")
 . (Join-Path $PSScriptRoot "invoke-probe.ps1")
 
 $PackageRoot = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
@@ -43,54 +44,6 @@ function Write-Utf8Text {
     [System.IO.File]::WriteAllText($Path, $Value, $Encoding)
 }
 
-function Test-Administrator {
-    $Identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-    $Principal = New-Object Security.Principal.WindowsPrincipal($Identity)
-    return $Principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-}
-
-function Test-PerformanceLogUser {
-    try {
-        $Identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-        $Principal = New-Object Security.Principal.WindowsPrincipal($Identity)
-        $Sid = New-Object Security.Principal.SecurityIdentifier("S-1-5-32-559")
-        return $Principal.IsInRole($Sid)
-    }
-    catch {
-        return $null
-    }
-}
-
-function Get-OsSnapshot {
-    $CurrentVersion = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
-    $Build = [int]$CurrentVersion.CurrentBuildNumber
-    $ProductName = [string]$CurrentVersion.ProductName
-    $DisplayVersionProperty = $CurrentVersion.PSObject.Properties["DisplayVersion"]
-    $UbrProperty = $CurrentVersion.PSObject.Properties["UBR"]
-    $EvidenceClass = if ($ProductName -match "Server") {
-        "server_exploratory"
-    }
-    elseif ($Build -ge 22000) {
-        "windows_11_preliminary"
-    }
-    elseif ($Build -ge 19045) {
-        "windows_10_22h2_candidate"
-    }
-    else {
-        "older_windows_exploratory"
-    }
-
-    return [ordered]@{
-        productName = $ProductName
-        displayVersion = if ($null -ne $DisplayVersionProperty) { [string]$DisplayVersionProperty.Value } else { "unknown" }
-        buildNumber = $Build
-        updateBuildRevision = if ($null -ne $UbrProperty) { [int]$UbrProperty.Value } else { $null }
-        architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
-        is64BitOperatingSystem = [Environment]::Is64BitOperatingSystem
-        evidenceClass = $EvidenceClass
-    }
-}
-
 $ActualAdministrator = $null
 $PerformanceLogUser = $null
 $OsSnapshot = $null
@@ -100,6 +53,12 @@ $ActualHash = ""
 $HashMatches = $false
 $ModeMatches = $false
 $ProbeExitCode = $null
+$ProbeOutcome = $null
+$EtwSessionStarted = $null
+$EtwConsumerStarted = $null
+$EtwStartStatus = $null
+$WorkloadCompleted = $null
+$SequentialReadMode = $null
 $CollectorStatus = "initializing"
 $FailureStage = "initialize"
 $FailureType = $null
@@ -176,8 +135,28 @@ try {
     }
     else {
         $ProbeExitCode = [int]$ProbeRun.exitCode
-        $CollectorStatus = if ($ProbeExitCode -eq 0) { "completed" } else { "probe_failed" }
-        $FailureStage = if ($ProbeExitCode -eq 0) { $null } else { "probe_exit" }
+        if ($ProbeExitCode -ne 0) {
+            $CollectorStatus = "probe_failed"
+            $FailureStage = "probe_exit"
+        }
+        else {
+            $CollectorStatus = "probe_report_invalid"
+            $FailureStage = "read_probe_summary"
+            $ProbeSummaryPath = Join-Path $RunDirectory "summary.json"
+            if (-not (Test-Path -LiteralPath $ProbeSummaryPath -PathType Leaf)) {
+                throw "探针没有生成 summary.json"
+            }
+            $ProbeSummaryText = [System.IO.File]::ReadAllText($ProbeSummaryPath, [System.Text.Encoding]::UTF8)
+            $ProbeSummary = $ProbeSummaryText | ConvertFrom-Json
+            $ProbeOutcome = [string]$ProbeSummary.outcome
+            $EtwSessionStarted = [bool]$ProbeSummary.etw.sessionStarted
+            $EtwConsumerStarted = [bool]$ProbeSummary.etw.consumerStarted
+            $EtwStartStatus = [int]$ProbeSummary.etw.startStatus
+            $WorkloadCompleted = [bool]$ProbeSummary.workload.completed
+            $SequentialReadMode = $ProbeSummary.workload.sequentialReadMode
+            $CollectorStatus = "completed"
+            $FailureStage = $null
+        }
     }
 }
 catch {
@@ -230,6 +209,12 @@ finally {
         runId = $RunId
         status = $CollectorStatus
         probeExitCode = $ProbeExitCode
+        probeOutcome = $ProbeOutcome
+        etwSessionStarted = $EtwSessionStarted
+        etwConsumerStarted = $EtwConsumerStarted
+        etwStartStatus = $EtwStartStatus
+        workloadCompleted = $WorkloadCompleted
+        sequentialReadMode = $SequentialReadMode
         expectedMode = $ExpectedMode
         actualAdministrator = $ActualAdministrator
         modeMatches = $ModeMatches
@@ -283,7 +268,12 @@ finally {
 
 Write-Host "诊断已完成。请把下面这个 ZIP 返回给 StorPulse 开发者："
 Write-Host $ArchivePath
-Write-Host "状态：$CollectorStatus"
+Write-Host "诊断流程状态：$CollectorStatus"
+if ($null -ne $ProbeOutcome) {
+    Write-Host "能力结果：$ProbeOutcome"
+    Write-Host "ETW：sessionStarted=$EtwSessionStarted consumerStarted=$EtwConsumerStarted startStatus=$EtwStartStatus"
+    Write-Host "负载：completed=$WorkloadCompleted sequentialReadMode=$SequentialReadMode"
+}
 if (-not $NoPause) {
     Read-Host "按回车键退出" | Out-Null
 }

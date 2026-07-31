@@ -1,6 +1,7 @@
 mod environment;
 mod etw;
 mod process;
+mod unbuffered_file;
 mod workload;
 
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -153,11 +154,12 @@ pub fn run() -> Result<(), RunError> {
     let process_scan_after =
         capture_process_scan(&mut errors, &mut timeline, started, "process_scan_after");
     let self_measurements = calculate_self_measurements(&self_before, &self_idle, &self_after);
-    let outcome = if etw_report.session_started && etw_report.consumer_started {
-        "windows_diagnostic_collected"
-    } else {
-        "windows_diagnostic_restricted"
-    };
+    let outcome =
+        if etw_report.session_started && etw_report.consumer_started && workload.completed {
+            "windows_diagnostic_collected"
+        } else {
+            "windows_diagnostic_restricted"
+        };
 
     push_timeline(
         &mut timeline,
@@ -184,6 +186,7 @@ pub fn run() -> Result<(), RunError> {
             "GetProcessIoCounters 是广义进程 I/O，不命名为磁盘专属 I/O",
             "Windows 10 或 Windows Server 结果不能替代 Windows 11 标准用户门禁",
             "诊断包不采集用户名、完整路径、命令行、文件内容或原始 ETL",
+            "不缓存读取只绕过 Windows 系统文件缓存，不声称绕过设备硬件缓存",
             "ETW 线程到进程映射可能遗漏短命线程，必须结合 unmappedDiskEvents 判断",
             "设备总量与进程量尚未证明可比较，不计算未归因差额",
         ],

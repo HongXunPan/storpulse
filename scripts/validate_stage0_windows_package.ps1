@@ -9,7 +9,7 @@ $ErrorActionPreference = "Stop"
 function Write-PackageDiagnostics {
     param([Parameter(Mandatory = $true)] [string]$Directory)
 
-    foreach ($FileName in @("collector-result.json", "console.log", "summary.json", "errors.json", "timeline.ndjson")) {
+    foreach ($FileName in @("collector-result.json", "console.log", "summary.json", "errors.json", "workload.json", "timeline.ndjson")) {
         $Path = Join-Path $Directory $FileName
         if (Test-Path -LiteralPath $Path -PathType Leaf) {
             Write-Host "===== $FileName ====="
@@ -77,9 +77,30 @@ if ($CollectorExitCode -ne 0 -or $CollectorResult.status -ne "completed") {
 $SummaryPath = Join-Path $RunDirectory.FullName "summary.json"
 $SummaryText = [System.IO.File]::ReadAllText($SummaryPath, [System.Text.Encoding]::UTF8)
 $Summary = $SummaryText | ConvertFrom-Json
+if ($CollectorResult.probeOutcome -ne $Summary.outcome -or
+    $CollectorResult.etwSessionStarted -ne $Summary.etw.sessionStarted -or
+    $CollectorResult.etwConsumerStarted -ne $Summary.etw.consumerStarted -or
+    $CollectorResult.workloadCompleted -ne $Summary.workload.completed -or
+    $CollectorResult.sequentialReadMode -ne $Summary.workload.sequentialReadMode) {
+    Write-PackageDiagnostics -Directory $RunDirectory.FullName
+    throw "成品包采集摘要与探针报告不一致"
+}
 if (-not $Summary.etw.sessionStarted -or -not $Summary.etw.consumerStarted) {
     Write-PackageDiagnostics -Directory $RunDirectory.FullName
     throw "成品包 ETW 会话没有成功启动：startStatus=$($Summary.etw.startStatus) openStatus=$($Summary.etw.openStatus)"
+}
+if (-not $Summary.workload.completed -or $Summary.workload.sequentialReadMode -ne "windows_unbuffered_file") {
+    Write-PackageDiagnostics -Directory $RunDirectory.FullName
+    throw "成品包没有完成绕过系统缓存的读取负载"
+}
+if ($Summary.workload.sequentialReadBytes -ne $Summary.workload.sequentialWriteBytes) {
+    Write-PackageDiagnostics -Directory $RunDirectory.FullName
+    throw "成品包顺序读写负载字节数不一致"
+}
+$ProbeEtw = @($Summary.etw.topProcesses | Where-Object { $_.isProbe }) | Select-Object -First 1
+if ($null -eq $ProbeEtw -or $ProbeEtw.readBytes -le 0 -or $Summary.etw.diskReadEvents -le 0) {
+    Write-PackageDiagnostics -Directory $RunDirectory.FullName
+    throw "成品包 ETW 没有观察到探针的不缓存读取"
 }
 
 $ArchivePath = Join-Path $DiagnosticsRoot ("storpulse-diagnostics-{0}.zip" -f $CollectorResult.runId)

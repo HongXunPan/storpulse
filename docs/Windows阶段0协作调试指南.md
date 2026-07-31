@@ -33,7 +33,7 @@ Windows Server、早期 Windows 10 和 Windows 11 也可以返回探索性日志
    - `storpulse-windows-probe.exe`
    - `package-manifest.json`
    - `SHA256SUMS.txt`
-   - `scripts/collect.ps1`、`scripts/invoke-probe.ps1` 与 `scripts/launch-admin.ps1`
+   - `scripts/collect.ps1`、`scripts/collect-environment.ps1`、`scripts/invoke-probe.ps1` 与 `scripts/launch-admin.ps1`
    - 两个中文 `.cmd` 入口
 4. 诊断脚本会在运行前比较 EXE 的 SHA-256；不匹配时不会启动探针。
 
@@ -44,7 +44,7 @@ Windows Server、早期 Windows 10 和 Windows 11 也可以返回探索性日志
 1. 确认当前命令窗口或文件管理器不是以管理员身份运行。
 2. 双击 `收集标准用户日志.cmd`。
    不要直接双击 `storpulse-windows-probe.exe`；EXE 需要由采集脚本传入输出目录并完成哈希、权限和环境校验。
-3. 等待约 15–30 秒；期间会创建并删除约 64 MiB 顺序文件、500 个小文件，并启动 40 个立即退出的 `cmd.exe`。
+3. 等待约 15–30 秒；期间会创建并删除约 64 MiB 顺序文件、使用按扇区对齐且绕过 Windows 系统文件缓存的方式读取该文件、创建 500 个小文件，并启动 40 个立即退出的 `cmd.exe`。
 4. 看到完成提示后按回车退出。
 5. 在 `diagnostics` 目录找到最新的 `storpulse-diagnostics-*.zip`。
 
@@ -77,21 +77,21 @@ Windows Server、早期 Windows 10 和 Windows 11 也可以返回探索性日志
 
 | 文件 | 用途 |
 | --- | --- |
-| `collector-result.json` | 权限入口、哈希、探针退出码、失败阶段、异常类型、HRESULT 和采集状态 |
+| `collector-result.json` | 权限入口、哈希、探针退出码、诊断流程状态、ETW 能力结果、失败阶段、异常类型和 HRESULT |
 | `environment.json` | Windows 产品、版本、内部版本、架构、权限与包 commit |
 | `summary.json` | ETW、进程覆盖、自身开销、负载和限制的主报告 |
 | `errors.json` | 原生 API 阶段、API 名、错误码和稳定分类 |
 | `timeline.ndjson` | 从启动到报告写出的相对时间线 |
-| `workload.json` | 三类测试负载是否完整及是否清理成功 |
+| `workload.json` | 三类测试负载是否完整、顺序读取模式、逻辑/物理扇区大小及是否清理成功 |
 | `console.log` | 探针最小控制台输出，不包含调用参数 |
 
 开发者收到日志后按以下顺序判断：
 
-1. `hashMatches`、`modeMatches` 和 `probeExitCode` 是否正常；
+1. `hashMatches`、`modeMatches` 和 `probeExitCode` 是否正常；`status=completed` 只表示诊断流程完成，不能代替 `probeOutcome` 和 ETW 能力判断；
 2. Windows 版本、x64、标准/管理员身份是否符合本轮目标；
 3. `sessionStarted`、`consumerStarted` 和 `errors.json` 是否显示权限或会话冲突；
 4. `eventsLost`、`unmappedDiskEvents`、`shortPayloadEvents` 是否影响可信度；
-5. 三类负载是否完成，读写方向和数量级是否可解释；
+5. 三类负载是否完成，`sequentialReadMode` 是否为 `windows_unbuffered_file`，读写方向和数量级是否可解释；
 6. 标准用户与管理员的差异能否稳定复现；
 7. 自身空闲写入、CPU、内存是否触发停止条件。
 
@@ -113,4 +113,5 @@ Windows Server、早期 Windows 10 和 Windows 11 也可以返回探索性日志
 - Windows 10 22H2 结果：可判断候选兼容性与权限差异，不等于 Windows 11 正式门禁。
 - Windows Server / GitHub runner 结果：只证明自动构建与日志结构，不证明桌面系统行为。
 - `GetProcessIoCounters`：始终标记为广义进程 I/O，不作为磁盘专属归因。
+- 不缓存读取：只绕过 Windows 系统文件缓存，不声称绕过硬件缓存；访问大小和缓冲区必须分别满足逻辑与物理扇区对齐要求。
 - ETW DiskIo：如果标准权限无法稳定取得、丢失率过高或线程归因无法解释，应停止 Windows“磁盘进程归因”实现并重新确认产品口径。

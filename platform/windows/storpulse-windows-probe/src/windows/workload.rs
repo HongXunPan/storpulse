@@ -1,11 +1,11 @@
 use std::fs::{self, File};
-use std::io::{BufWriter, Read, Write};
+use std::io::{BufWriter, Write};
 use std::path::Path;
 use std::process::Command;
 
 use crate::model::WorkloadReport;
 
-use super::NativeFailure;
+use super::{NativeFailure, unbuffered_file};
 
 const SEQUENTIAL_MEBIBYTES: u32 = 64;
 const SMALL_FILE_COUNT: u32 = 500;
@@ -50,19 +50,7 @@ fn perform_inner(directory: &Path) -> Result<WorkloadReport, NativeFailure> {
         .map_err(|error| io_failure("workload", "sync_file", error))?;
     drop(writer);
 
-    let mut reader =
-        File::open(&large_file).map_err(|error| io_failure("workload", "open_file", error))?;
-    let mut read_buffer = vec![0_u8; 1_048_576];
-    let mut sequential_read_bytes = 0_u64;
-    loop {
-        let read = reader
-            .read(&mut read_buffer)
-            .map_err(|error| io_failure("workload", "read_file", error))?;
-        if read == 0 {
-            break;
-        }
-        sequential_read_bytes = sequential_read_bytes.saturating_add(read as u64);
-    }
+    let unbuffered_read = unbuffered_file::read(&large_file)?;
 
     let small_directory = directory.join("small-files");
     fs::create_dir_all(&small_directory)
@@ -88,7 +76,10 @@ fn perform_inner(directory: &Path) -> Result<WorkloadReport, NativeFailure> {
         attempted: true,
         completed: true,
         sequential_write_bytes: u64::from(SEQUENTIAL_MEBIBYTES) * 1_048_576,
-        sequential_read_bytes,
+        sequential_read_bytes: unbuffered_read.bytes,
+        sequential_read_mode: Some("windows_unbuffered_file"),
+        logical_sector_bytes: Some(unbuffered_read.logical_sector_bytes),
+        physical_sector_bytes: Some(unbuffered_read.physical_sector_bytes),
         small_files_created: SMALL_FILE_COUNT,
         short_lived_processes_started,
         cleanup_succeeded: false,

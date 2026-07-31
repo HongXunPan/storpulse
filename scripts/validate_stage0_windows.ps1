@@ -8,7 +8,7 @@ $ErrorActionPreference = "Stop"
 function Write-ProbeDiagnostics {
     param([Parameter(Mandatory = $true)] [string]$Directory)
 
-    foreach ($FileName in @("summary.json", "errors.json", "timeline.ndjson")) {
+    foreach ($FileName in @("summary.json", "errors.json", "workload.json", "timeline.ndjson")) {
         $Path = Join-Path $Directory $FileName
         if (Test-Path -LiteralPath $Path -PathType Leaf) {
             Write-Host "===== $FileName ====="
@@ -58,6 +58,19 @@ try {
     if (-not $Summary.etw.sessionStarted -or -not $Summary.etw.consumerStarted) {
         Write-ProbeDiagnostics -Directory $ReportDirectory
         throw "Windows 阶段 0 ETW 会话没有成功启动：startStatus=$($Summary.etw.startStatus) openStatus=$($Summary.etw.openStatus)"
+    }
+    if (-not $Summary.workload.completed -or $Summary.workload.sequentialReadMode -ne "windows_unbuffered_file") {
+        Write-ProbeDiagnostics -Directory $ReportDirectory
+        throw "Windows 阶段 0 未完成绕过系统缓存的读取负载"
+    }
+    if ($Summary.workload.sequentialReadBytes -ne $Summary.workload.sequentialWriteBytes) {
+        Write-ProbeDiagnostics -Directory $ReportDirectory
+        throw "Windows 阶段 0 顺序读写负载字节数不一致"
+    }
+    $ProbeEtw = @($Summary.etw.topProcesses | Where-Object { $_.isProbe }) | Select-Object -First 1
+    if ($null -eq $ProbeEtw -or $ProbeEtw.readBytes -le 0 -or $Summary.etw.diskReadEvents -le 0) {
+        Write-ProbeDiagnostics -Directory $ReportDirectory
+        throw "Windows 阶段 0 ETW 没有观察到探针的不缓存读取"
     }
     if ($SummaryText -match 'userName|commandLine|filePath|fileContent|processName') {
         throw "Windows 阶段 0 报告出现禁止持久化的字段"
