@@ -94,8 +94,13 @@ func rustBridgeRoundTrip() async throws {
     try await engine.ingest(second)
     let snapshot = try await engine.snapshot(at: 2_000_000_001)
 
+    #expect(snapshot.devices.first?.current?.readBytesPerSecond == 4_096)
+    #expect(snapshot.devices.first?.current?.writeBytesPerSecond == 8_192)
+    #expect(snapshot.applications.first?.applicationID == "com.example.editor")
     #expect(snapshot.applications.first?.current?.readBytesPerSecond == 4_096)
     #expect(snapshot.applications.first?.current?.writeBytesPerSecond == 8_192)
+    #expect(snapshot.processes.first?.parentPID == 1)
+    #expect(snapshot.processes.first?.launchedByApplicationID == "com.example.launcher")
 }
 
 private struct FixtureSnapshotSource: SnapshotSource {
@@ -160,6 +165,7 @@ private func fixtureRawSnapshot(
                 executableName: "Editor",
                 applicationID: "com.example.editor",
                 applicationName: "编辑器",
+                launchedByApplicationID: "com.example.launcher",
                 readBytes: readBytes,
                 writeBytes: writeBytes,
                 userTimeNanoseconds: 0,
@@ -168,13 +174,21 @@ private func fixtureRawSnapshot(
                 physicalFootprintBytes: 0
             ),
         ],
-        devices: [],
+        devices: [
+            DeviceIOSample(
+                registryEntryID: 7,
+                readBytes: readBytes,
+                writeBytes: writeBytes,
+                readOperations: nil,
+                writeOperations: nil
+            ),
+        ],
         summary: CollectionSummary(
             discoveredProcesses: 1,
             readableProcesses: 1,
             restrictedProcesses: 0,
             exitedProcesses: 0,
-            deviceCount: 0,
+            deviceCount: 1,
             collectionDurationNanoseconds: 1
         )
     )

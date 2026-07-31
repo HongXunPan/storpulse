@@ -14,6 +14,9 @@ func snapshotEncodingExcludesSensitiveFields() throws {
                 identity: ProcessIdentity(pid: 42, startTimeTicks: 9),
                 parentPID: 1,
                 executableName: "示例进程",
+                applicationID: "com.example.editor",
+                applicationName: "编辑器",
+                launchedByApplicationID: "com.example.launcher",
                 readBytes: 100,
                 writeBytes: 200,
                 userTimeNanoseconds: 10,
@@ -22,13 +25,21 @@ func snapshotEncodingExcludesSensitiveFields() throws {
                 physicalFootprintBytes: 400
             ),
         ],
-        devices: [],
+        devices: [
+            DeviceIOSample(
+                registryEntryID: 7,
+                readBytes: 500,
+                writeBytes: 600,
+                readOperations: 5,
+                writeOperations: 6
+            ),
+        ],
         summary: CollectionSummary(
             discoveredProcesses: 1,
             readableProcesses: 1,
             restrictedProcesses: 0,
             exitedProcesses: 0,
-            deviceCount: 0,
+            deviceCount: 1,
             collectionDurationNanoseconds: 20
         )
     )
@@ -36,6 +47,14 @@ func snapshotEncodingExcludesSensitiveFields() throws {
     let data = try SnapshotEncoder.encode(snapshot)
     let text = String(decoding: data, as: UTF8.self)
     #expect(text.contains("\"schemaVersion\":1"))
+    #expect(text.contains("\"parentPid\":1"))
+    #expect(text.contains("\"applicationId\":\"com.example.editor\""))
+    #expect(text.contains("\"launchedByApplicationId\":\"com.example.launcher\""))
+    #expect(text.contains("\"registryEntryId\":7"))
+    #expect(!text.contains("\"parentPID\""))
+    #expect(!text.contains("\"applicationID\""))
+    #expect(!text.contains("\"launchedByApplicationID\""))
+    #expect(!text.contains("\"registryEntryID\""))
     #expect(!text.contains("path"))
     #expect(!text.contains("command"))
     #expect(!text.contains("username"))

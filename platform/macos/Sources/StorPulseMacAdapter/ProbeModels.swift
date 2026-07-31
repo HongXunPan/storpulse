@@ -44,6 +44,22 @@ public struct ProcessIOSample: Codable, Sendable {
     public let residentBytes: UInt64
     public let physicalFootprintBytes: UInt64
 
+    private enum CodingKeys: String, CodingKey {
+        case identity
+        case parentPID = "parentPid"
+        case executableName
+        case applicationID = "applicationId"
+        case applicationName
+        case isHelper
+        case launchedByApplicationID = "launchedByApplicationId"
+        case readBytes
+        case writeBytes
+        case userTimeNanoseconds
+        case systemTimeNanoseconds
+        case residentBytes
+        case physicalFootprintBytes
+    }
+
     public init(
         identity: ProcessIdentity,
         parentPID: Int32?,
@@ -104,6 +120,14 @@ public struct DeviceIOSample: Codable, Sendable {
     public let writeBytes: UInt64
     public let readOperations: UInt64?
     public let writeOperations: UInt64?
+
+    private enum CodingKeys: String, CodingKey {
+        case registryEntryID = "registryEntryId"
+        case readBytes
+        case writeBytes
+        case readOperations
+        case writeOperations
+    }
 
     public init(
         registryEntryID: UInt64,
