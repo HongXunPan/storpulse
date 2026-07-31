@@ -59,9 +59,11 @@ jobs:
       - name: 生成主包与符号包
         shell: powershell
         run: |
+          $CargoMetadata = cargo metadata --locked --no-deps --format-version 1 | ConvertFrom-Json
+          $ReleaseDirectory = Join-Path ([string]$CargoMetadata.target_directory) "x86_64-pc-windows-msvc/release"
           ./scripts/package_windows_stage0.ps1 `
-            -BinaryPath ".codex-tmp/cargo-target/x86_64-pc-windows-msvc/release/storpulse-windows-probe.exe" `
-            -PdbPath ".codex-tmp/cargo-target/x86_64-pc-windows-msvc/release/storpulse-windows-probe.pdb" `
+            -BinaryPath (Join-Path $ReleaseDirectory "storpulse-windows-probe.exe") `
+            -PdbPath (Join-Path $ReleaseDirectory "storpulse-windows-probe.pdb") `
             -OutputDirectory ".codex-tmp/windows-stage0-artifacts" `
             -CommitSha "${{ github.sha }}"
 

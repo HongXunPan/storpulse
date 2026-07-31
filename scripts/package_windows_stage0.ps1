@@ -9,6 +9,16 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $Root = Split-Path -Parent $PSScriptRoot
+$BinaryPath = [System.IO.Path]::GetFullPath($BinaryPath)
+if (-not (Test-Path -LiteralPath $BinaryPath -PathType Leaf)) {
+    throw "找不到 Windows 探针构建产物：$BinaryPath"
+}
+if ($PdbPath -ne "") {
+    $PdbPath = [System.IO.Path]::GetFullPath($PdbPath)
+    if (-not (Test-Path -LiteralPath $PdbPath -PathType Leaf)) {
+        throw "找不到 Windows 探针调试符号：$PdbPath"
+    }
+}
 $OutputDirectory = [System.IO.Path]::GetFullPath($OutputDirectory)
 $PackageRoot = Join-Path $OutputDirectory "storpulse-windows-stage0-x64"
 $ScriptsDirectory = Join-Path $PackageRoot "scripts"
