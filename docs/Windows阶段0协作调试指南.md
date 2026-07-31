@@ -43,6 +43,7 @@ Windows Server、早期 Windows 10 和 Windows 11 也可以返回探索性日志
 
 1. 确认当前命令窗口或文件管理器不是以管理员身份运行。
 2. 双击 `收集标准用户日志.cmd`。
+   不要直接双击 `storpulse-windows-probe.exe`；EXE 需要由采集脚本传入输出目录并完成哈希、权限和环境校验。
 3. 等待约 15–30 秒；期间会创建并删除约 64 MiB 顺序文件、500 个小文件，并启动 40 个立即退出的 `cmd.exe`。
 4. 看到完成提示后按回车退出。
 5. 在 `diagnostics` 目录找到最新的 `storpulse-diagnostics-*.zip`。
@@ -66,7 +67,9 @@ Windows Server、早期 Windows 10 和 Windows 11 也可以返回探索性日志
 - `storpulse-diagnostics-<时间>-<随机标识>.zip`
 - 同一次协作机器上的第二个权限模式 ZIP
 
-如果脚本显示失败，也要返回 ZIP。失败包仍会包含 `collector-result.json`、`environment.json`、`console.log`，以及探针成功写出时的报告。
+如果脚本显示失败，也要返回 ZIP。采集器会从初始化阶段开始记录脱敏失败阶段、异常类型和 HRESULT；失败包仍会包含 `collector-result.json`、`environment.json`、`console.log`，以及探针成功写出时的报告。异常消息、用户名、命令行和本机路径不会写入失败日志。
+
+如果 `diagnostics` 下只出现空目录而没有 JSON、日志或 ZIP，说明成品包采集入口没有通过最低日志门禁；不要改为直接运行 EXE，应返回该现象并换用修复后的新产物。
 
 不需要返回：整个解压目录、EXE、PDB、Windows 事件日志、ETL、截图或手工抄写的系统信息。
 
@@ -74,7 +77,7 @@ Windows Server、早期 Windows 10 和 Windows 11 也可以返回探索性日志
 
 | 文件 | 用途 |
 | --- | --- |
-| `collector-result.json` | 权限入口、哈希、探针退出码和采集状态 |
+| `collector-result.json` | 权限入口、哈希、探针退出码、失败阶段、异常类型、HRESULT 和采集状态 |
 | `environment.json` | Windows 产品、版本、内部版本、架构、权限与包 commit |
 | `summary.json` | ETW、进程覆盖、自身开销、负载和限制的主报告 |
 | `errors.json` | 原生 API 阶段、API 名、错误码和稳定分类 |

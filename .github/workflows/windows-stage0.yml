@@ -11,6 +11,7 @@ on:
       - "scripts/windows-stage0/**"
       - "scripts/package_windows_stage0.ps1"
       - "scripts/validate_stage0_windows.ps1"
+      - "scripts/validate_stage0_windows_package.ps1"
       - ".github/workflows/windows-stage0.yml"
   push:
     branches: [main]
@@ -22,6 +23,7 @@ on:
       - "scripts/windows-stage0/**"
       - "scripts/package_windows_stage0.ps1"
       - "scripts/validate_stage0_windows.ps1"
+      - "scripts/validate_stage0_windows_package.ps1"
       - ".github/workflows/windows-stage0.yml"
 
 permissions:
@@ -90,6 +92,10 @@ jobs:
             -OutputDirectory ".codex-tmp/windows-stage0-artifacts" `
             -CommitSha "${{ github.sha }}"
 
+      - name: 验证 Windows 成品包入口
+        shell: powershell
+        run: ./scripts/validate_stage0_windows_package.ps1 -PackageRoot ".codex-tmp/windows-stage0-artifacts/storpulse-windows-stage0-x64"
+
       - name: 上传 Windows 诊断主包
         uses: actions/upload-artifact@v7
         with:
@@ -111,6 +117,8 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: storpulse-windows-stage0-ci-diagnostics-${{ github.sha }}
-          path: .codex-tmp/windows-stage0-ci/probe-report
+          path: |
+            .codex-tmp/windows-stage0-ci/probe-report
+            .codex-tmp/windows-stage0-artifacts/storpulse-windows-stage0-x64/diagnostics
           if-no-files-found: warn
           retention-days: 7

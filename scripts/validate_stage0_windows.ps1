@@ -34,7 +34,7 @@ try {
         }
     }
     $SummaryPath = Join-Path $ReportDirectory "summary.json"
-    $SummaryText = Get-Content -Raw -LiteralPath $SummaryPath
+    $SummaryText = [System.IO.File]::ReadAllText($SummaryPath, [System.Text.Encoding]::UTF8)
     $Summary = $SummaryText | ConvertFrom-Json
     if ($Summary.schemaVersion -ne 1) {
         throw "Windows 阶段 0 报告 schemaVersion 不匹配"

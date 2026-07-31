@@ -25,6 +25,8 @@ Windows runner 校验：
 ./scripts/validate_stage0_windows.ps1
 ```
 
+成品包生成后，Actions 还会用 Windows PowerShell 5.1 执行 `scripts/validate_stage0_windows_package.ps1`，验证最终包内采集入口、显式 UTF-8 清单读取、结构化日志和诊断 ZIP，而不只直接运行探针 EXE。
+
 Windows 协作者只使用 Actions 产物，不需要安装开发环境；操作与日志返回要求见[Windows 阶段 0 协作调试指南](docs/Windows阶段0协作调试指南.md)。
 
 脚本会把缓存、测试负载和报告放在 `.codex-tmp/`，完成后清理负载文件。报告包含宿主环境和聚合指标，不包含文件路径、命令行或用户名。
