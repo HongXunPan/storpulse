@@ -7,6 +7,23 @@ ORIGINAL_HOME="${HOME}"
 
 mkdir -p "${TMP_DIR}/home" "${TMP_DIR}/module-cache" "${TMP_DIR}/swift"
 
+python3 - "${ROOT_DIR}" <<'PY'
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1])
+missing_bom = []
+for script in sorted((root / "scripts").rglob("*.ps1")):
+    if not script.read_bytes().startswith(b"\xef\xbb\xbf"):
+        missing_bom.append(str(script.relative_to(root)))
+if missing_bom:
+    raise SystemExit(
+        "以下 PowerShell 脚本缺少 Windows PowerShell 5.1 所需的 UTF-8 BOM：\n"
+        + "\n".join(missing_bom)
+    )
+print("PowerShell UTF-8 BOM 校验通过")
+PY
+
 if [[ -f "${ROOT_DIR}/Cargo.toml" ]]; then
   RUST_BIN="${STORPULSE_RUST_BIN:-}"
   if [[ -z "${RUST_BIN}" ]]; then

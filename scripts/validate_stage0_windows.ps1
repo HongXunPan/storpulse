@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$Target = "x86_64-pc-windows-msvc"
 )
 
