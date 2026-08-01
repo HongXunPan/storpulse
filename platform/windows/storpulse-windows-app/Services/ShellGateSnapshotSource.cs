@@ -55,8 +55,8 @@ internal sealed class ShellGateSnapshotSource
 
     private ShellGateRowSample CreateSample(int index)
     {
-        var readRate = ((index * 53UL) + (_tick * 97UL)) % 8192UL * 1024d;
-        var writeRate = ((index * 31UL) + (_tick * 61UL)) % 4096UL * 1024d;
+        var readRate = (((ulong)index * 53UL) + (_tick * 97UL)) % 8192UL * 1024d;
+        var writeRate = (((ulong)index * 31UL) + (_tick * 61UL)) % 4096UL * 1024d;
         var processCount = (index % 5) + 1;
         var helperCount = index % 4;
         var processSummary = helperCount == 0
