@@ -39,6 +39,11 @@ pub(crate) fn parse(arguments: Vec<OsString>) -> Result<GateOptions, &'static st
                 &mut mode_selected,
                 GateMode::ClientTerminationCleanup,
             )?,
+            "--sleep-resume-validation" => select_mode(
+                &mut mode,
+                &mut mode_selected,
+                GateMode::SleepResumeValidation,
+            )?,
             _ => return Err("unknown_argument"),
         }
     }
@@ -123,7 +128,7 @@ mod tests {
     }
 
     #[test]
-    fn parses_timeout_and_termination_modes_but_rejects_conflicts() {
+    fn parses_lifecycle_modes_but_rejects_conflicts() {
         let timeout = parse(vec![
             "--output".into(),
             "reports".into(),
@@ -143,6 +148,16 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(termination.mode, GateMode::ClientTerminationCleanup);
+
+        let sleep_resume = parse(vec![
+            "--output".into(),
+            "reports".into(),
+            "--run-id".into(),
+            "run-sleep-resume".into(),
+            "--sleep-resume-validation".into(),
+        ])
+        .unwrap();
+        assert_eq!(sleep_resume.mode, GateMode::SleepResumeValidation);
 
         let conflicting = parse(vec![
             "--output".into(),

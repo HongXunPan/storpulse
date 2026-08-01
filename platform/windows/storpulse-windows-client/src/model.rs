@@ -17,6 +17,7 @@ pub enum GateMode {
     DisconnectCleanup,
     ConnectTimeoutCleanup,
     ClientTerminationCleanup,
+    SleepResumeValidation,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -84,6 +85,19 @@ pub struct WorkloadEvidence {
     pub cleanup_succeeded: bool,
 }
 
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SleepResumeEvidence {
+    pub ready_for_sleep: bool,
+    pub suspend_detected: bool,
+    pub resume_detected: bool,
+    pub estimated_sleep_milliseconds: u64,
+    pub sequence_continuity_confirmed: bool,
+    pub pre_sleep_snapshots: SnapshotEvidence,
+    pub post_resume_snapshots: SnapshotEvidence,
+    pub post_resume_workload: WorkloadEvidence,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GateReport {
@@ -103,8 +117,11 @@ pub struct GateReport {
     pub disconnect_cleanup_confirmed: bool,
     pub connect_timeout_confirmed: bool,
     pub client_termination_cleanup_confirmed: bool,
+    pub sleep_resume_confirmed: bool,
     pub snapshots: SnapshotEvidence,
     pub workload: WorkloadEvidence,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sleep_resume: Option<SleepResumeEvidence>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub failure: Option<SafeFailure>,
     pub limitations: Vec<&'static str>,
@@ -130,18 +147,31 @@ impl GateReport {
             disconnect_cleanup_confirmed: false,
             connect_timeout_confirmed: false,
             client_termination_cleanup_confirmed: false,
+            sleep_resume_confirmed: false,
             snapshots: SnapshotEvidence::default(),
             workload: WorkloadEvidence::default(),
+            sleep_resume: (options.mode == GateMode::SleepResumeValidation)
+                .then(SleepResumeEvidence::default),
             failure: None,
-            limitations: vec![
-                "Windows 10 结果不能替代 Windows 11、签名、安装器或长期运行门禁",
-                "诊断只保存聚合证据，不保存原始快照、路径、命令行、用户名、SID 或 nonce",
-                "单次受控负载不能替代休眠恢复、强杀和多用户验证",
-            ],
+            limitations: limitations(options.mode),
         }
     }
 
     pub fn succeeded(&self) -> bool {
         self.status == GateStatus::Completed
     }
+}
+
+#[cfg(windows)]
+fn limitations(mode: GateMode) -> Vec<&'static str> {
+    let mut limitations = vec![
+        "Windows 10 结果不能替代 Windows 11、签名、安装器或长期运行门禁",
+        "诊断只保存聚合证据，不保存原始快照、路径、命令行、用户名、SID 或 nonce",
+    ];
+    if mode == GateMode::SleepResumeValidation {
+        limitations.push("一次手动休眠恢复不能替代现代待机、休眠、多用户或长期运行验证");
+    } else {
+        limitations.push("单次受控负载不能替代休眠恢复、强杀和多用户验证");
+    }
+    limitations
 }

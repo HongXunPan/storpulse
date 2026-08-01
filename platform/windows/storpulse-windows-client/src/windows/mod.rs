@@ -3,10 +3,10 @@ mod client_error;
 mod evidence;
 mod identity;
 mod scm;
+mod sleep_resume;
 mod unbuffered_file;
 mod workload;
 
-use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use storpulse_windows_ipc::ProductPipe;
@@ -128,13 +128,12 @@ fn run_continuous(
     if options.mode == GateMode::ClientTerminationCleanup {
         terminate_process_for_gate();
     }
+    if options.mode == GateMode::SleepResumeValidation {
+        return sleep_resume::run(options, report, &pipe, &mut session);
+    }
 
     report.workload.attempted = true;
-    let (sender, receiver) = mpsc::sync_channel(1);
-    let output_directory = options.output_directory.clone();
-    std::thread::spawn(move || {
-        let _ = sender.send(workload::perform(&output_directory));
-    });
+    let receiver = workload::spawn(options.output_directory.clone());
 
     let collection_deadline = Instant::now() + Duration::from_secs(options.duration_seconds);
     while Instant::now() < collection_deadline {
@@ -157,6 +156,20 @@ fn run_continuous(
         );
     }
 
+    complete_protocol(&pipe, &mut session, report)?;
+    drop(pipe);
+
+    report.workload = receiver
+        .recv_timeout(WORKLOAD_COMPLETION_TIMEOUT)
+        .map_err(|_| ClientError::new("workload", "workload_timeout", Some(1460)))??;
+    Ok(())
+}
+
+pub(super) fn complete_protocol(
+    pipe: &ProductPipe,
+    session: &mut CollectionSession,
+    report: &mut GateReport,
+) -> Result<(), ClientError> {
     session.request_stop()?;
     pipe.write_message_until(
         &ClientMessage::StopCollection {
@@ -175,11 +188,6 @@ fn run_continuous(
         None,
     )?;
     report.protocol_completed = true;
-    drop(pipe);
-
-    report.workload = receiver
-        .recv_timeout(WORKLOAD_COMPLETION_TIMEOUT)
-        .map_err(|_| ClientError::new("workload", "workload_timeout", Some(1460)))??;
     Ok(())
 }
 
@@ -219,7 +227,7 @@ fn receive_until_stopped(
     }
 }
 
-fn receive(
+pub(super) fn receive(
     pipe: &ProductPipe,
     session: &mut CollectionSession,
     deadline: Instant,

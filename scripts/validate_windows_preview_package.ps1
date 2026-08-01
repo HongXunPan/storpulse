@@ -16,6 +16,7 @@ $RequiredRootFiles = @(
     "收集断连清理.cmd",
     "验证连接超时清理.cmd",
     "验证客户端强杀清理.cmd",
+    "验证休眠恢复.cmd",
     "卸载 StorPulse 按需服务.cmd",
     "Windows持续采集实机验证指南.md",
     "反馈问题.url"
@@ -151,7 +152,10 @@ if ($CollectorText.Contains("-Verb RunAs") -or
     -not $LifecycleText.Contains('snapshotCount -ge 3') -or
     -not $CollectorText.Contains('$Summary.status -ne "completed"') -or
     -not $InvokeClientText.Contains("--connect-timeout-validation") -or
-    -not $InvokeClientText.Contains("--terminate-after-collection-started")) {
+    -not $InvokeClientText.Contains("--terminate-after-collection-started") -or
+    -not $InvokeClientText.Contains("--sleep-resume-validation") -or
+    -not $InvokeClientText.Contains('.sleep-resume-ready') -or
+    -not $CollectorText.Contains('windows-stage1-sleep-resume-validation')) {
     throw "采集脚本没有保持标准用户或缺少归档白名单隐私检查"
 }
 
@@ -161,6 +165,7 @@ $EntryChecks = [ordered]@{
     "收集断连清理.cmd" = "windows-stage1-disconnect-cleanup"
     "验证连接超时清理.cmd" = "windows-stage1-connect-timeout-cleanup"
     "验证客户端强杀清理.cmd" = "windows-stage1-client-termination-cleanup"
+    "验证休眠恢复.cmd" = "windows-stage1-sleep-resume-validation"
     "卸载 StorPulse 按需服务.cmd" = "launch-service-uninstall.ps1"
 }
 foreach ($Entry in $EntryChecks.GetEnumerator()) {

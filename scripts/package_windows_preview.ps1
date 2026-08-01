@@ -58,6 +58,8 @@ Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-preview/collect-connect
     -Destination (Join-Path $PackageRoot "验证连接超时清理.cmd")
 Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-preview/collect-client-termination.cmd") `
     -Destination (Join-Path $PackageRoot "验证客户端强杀清理.cmd")
+Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-preview/validate-sleep-resume.cmd") `
+    -Destination (Join-Path $PackageRoot "验证休眠恢复.cmd")
 Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-preview/uninstall-service.cmd") `
     -Destination (Join-Path $PackageRoot "卸载 StorPulse 按需服务.cmd")
 Copy-Item -LiteralPath (Join-Path $Root "docs/Windows持续采集实机验证指南.md") `

@@ -2,9 +2,9 @@
 
 ## 1. 验证范围
 
-本指南用于在 Windows 10 22H2 x64 上验证 StorPulse 产品服务的持续协议、真实 ETW 聚合、普通用户启动、正常停止、客户端断开、连接超时和客户端强杀清理。它是 Windows 阶段 1 实机门禁，不等于 Windows 11、休眠恢复、WinUI、签名安装、长期运行或正式发布已经通过。
+本指南用于在 Windows 10 22H2 x64 上验证 StorPulse 产品服务的持续协议、真实 ETW 聚合、普通用户启动、正常停止、客户端断开、连接超时、客户端强杀清理和休眠恢复。它是 Windows 阶段 1 实机门禁，不等于 Windows 11、WinUI、签名安装、长期运行或正式发布已经通过。
 
-测试包由 GitHub Actions 构建；本机不需要 Rust、Visual Studio、.NET 或“性能日志用户”组。安装和卸载会请求 UAC，两个采集入口必须保持普通用户权限。
+测试包由 GitHub Actions 构建；本机不需要 Rust、Visual Studio、.NET 或“性能日志用户”组。安装和卸载会请求 UAC，所有采集入口必须保持普通用户权限。
 
 ## 2. 操作步骤
 
@@ -34,8 +34,16 @@
    diagnostics\storpulse-diagnostics-windows-stage1-client-termination-cleanup-*.zip
    ```
 
-7. 把四个 ZIP 放到约定的反馈目录或在 `反馈问题.url` 打开的 GitHub Issues 页面中自行上传。浏览器不会自动读取或上传文件。
-8. 双击 `卸载 StorPulse 按需服务.cmd`，允许 UAC；看到绿色清理成功和 `exit_code=0` 后再删除解压目录。
+7. 双击 `验证休眠恢复.cmd`。等窗口显示绿色的“休眠恢复门禁已准备完成”后，保持窗口打开，手动选择 Windows 的“睡眠”；等待至少 10 秒再唤醒电脑。恢复后脚本会再次执行受控负载并生成：
+
+   ```text
+   diagnostics\storpulse-diagnostics-windows-stage1-sleep-resume-validation-*.zip
+   ```
+
+   不要用关机、重启、关闭显示器或锁屏替代睡眠。若系统没有“睡眠”选项，保留失败 ZIP 和窗口输出，不要改用休眠命令或第三方工具。
+
+8. 把五个 ZIP 放到约定的反馈目录或在 `反馈问题.url` 打开的 GitHub Issues 页面中自行上传。浏览器不会自动读取或上传文件。
+9. 双击 `卸载 StorPulse 按需服务.cmd`，允许 UAC；看到绿色清理成功和 `exit_code=0` 后再删除解压目录。
 
 若任一步显示 `exit_code=1`，不要手工启动 EXE、覆盖安装、修改服务权限或反复运行。保留窗口输出和已经生成的阶段化 ZIP，直接反馈。
 
@@ -68,6 +76,17 @@
 - 恢复采集至少生成 3 个快照，且 `eventsLost`、`buffersLost` 均为 0。
 
 强杀入口故意终止测试客户端，但不终止桌面、PowerShell 或其他进程；恢复采集失败时不要手工重启服务或继续叠加测试。
+
+休眠恢复 ZIP 至少应满足：
+
+- `status=completed`、`sleepResumeConfirmed=true`、`protocolCompleted=true`、`serviceStopped=true`；
+- `sleepResume.readyForSleep=true`、`suspendDetected=true`、`resumeDetected=true`；
+- `estimatedSleepMilliseconds` 至少为 2,000，且休眠前与恢复后都至少有 3 个快照；
+- `sequenceContinuityConfirmed=true`，恢复后客户端和设备读取累计量继续增长；
+- 休眠前、恢复后的两个 32 MiB 不缓存负载均完成并清理；
+- 总体 `unmappedDiskEvents`、`eventsLost`、`buffersLost` 均为 0。
+
+本门禁通过两个 Windows 系统时钟的差值识别真实非工作时段，不读取系统事件日志。一次手动睡眠只证明当前 Win10 电源形态；不能外推现代待机、休眠、其他硬件或 Win11。
 
 ## 4. 隐私与反馈边界
 

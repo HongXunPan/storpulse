@@ -1,6 +1,7 @@
 use std::fs::{self, File};
 use std::io::{BufWriter, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::mpsc::{self, Receiver};
 
 use crate::WorkloadEvidence;
 
@@ -8,6 +9,14 @@ use super::{ClientError, unbuffered_file};
 
 const SEQUENTIAL_MEBIBYTES: u32 = 32;
 const MEBIBYTE_BYTES: u64 = 1_048_576;
+
+pub(super) fn spawn(output_directory: PathBuf) -> Receiver<Result<WorkloadEvidence, ClientError>> {
+    let (sender, receiver) = mpsc::sync_channel(1);
+    std::thread::spawn(move || {
+        let _ = sender.send(perform(&output_directory));
+    });
+    receiver
+}
 
 pub(super) fn perform(output_directory: &Path) -> Result<WorkloadEvidence, ClientError> {
     let workload_directory = output_directory.join("workload-active");

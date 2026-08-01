@@ -61,6 +61,7 @@ pub(super) fn finish_report(report: &mut GateReport) {
                 "windows_client_termination_cleanup_not_triggered",
             );
         }
+        GateMode::SleepResumeValidation => return finish_sleep_resume_report(report),
         GateMode::ContinuousValidation => {}
     }
     if !report.service_stopped {
@@ -93,7 +94,64 @@ pub(super) fn failure_outcome(mode: GateMode) -> &'static str {
         GateMode::DisconnectCleanup => "windows_service_disconnect_cleanup_failed",
         GateMode::ConnectTimeoutCleanup => "windows_service_connect_timeout_cleanup_failed",
         GateMode::ClientTerminationCleanup => "windows_client_termination_cleanup_failed",
+        GateMode::SleepResumeValidation => "windows_sleep_resume_validation_failed",
     }
+}
+
+fn finish_sleep_resume_report(report: &mut GateReport) {
+    if !report.service_stopped {
+        fail_for_service_stop(report, "windows_sleep_resume_validation_failed");
+        return;
+    }
+    let Some(evidence) = report.sleep_resume.as_ref() else {
+        report.status = GateStatus::Failed;
+        report.outcome = "windows_sleep_resume_validation_failed";
+        report.failure = Some(SafeFailure::new(
+            "sleep_resume",
+            "sleep_resume_evidence_missing",
+            None,
+        ));
+        return;
+    };
+
+    report.sleep_resume_confirmed = report.protocol_completed
+        && evidence.ready_for_sleep
+        && evidence.suspend_detected
+        && evidence.resume_detected
+        && evidence.estimated_sleep_milliseconds >= super::sleep_resume::MINIMUM_SLEEP_MILLISECONDS
+        && evidence.sequence_continuity_confirmed
+        && snapshot_phase_complete(&evidence.pre_sleep_snapshots)
+        && snapshot_phase_complete(&evidence.post_resume_snapshots)
+        && workload_complete(&report.workload)
+        && workload_complete(&evidence.post_resume_workload)
+        && evidence.post_resume_snapshots.client_read_bytes
+            > evidence.pre_sleep_snapshots.client_read_bytes
+        && evidence.post_resume_snapshots.device_read_bytes
+            > evidence.pre_sleep_snapshots.device_read_bytes
+        && report.snapshots.unmapped_disk_events == 0
+        && report.snapshots.events_lost == 0
+        && report.snapshots.buffers_lost == 0;
+    if report.sleep_resume_confirmed {
+        report.status = GateStatus::Completed;
+        report.outcome = "windows_sleep_resume_validation_completed";
+    } else {
+        report.status = GateStatus::Restricted;
+        report.outcome = "windows_sleep_resume_validation_restricted";
+    }
+}
+
+pub(super) fn snapshot_phase_complete(evidence: &SnapshotEvidence) -> bool {
+    evidence.snapshot_count >= 3
+        && evidence.client_process_observed
+        && evidence.client_read_bytes > 0
+        && evidence.device_read_bytes > 0
+        && evidence.unmapped_disk_events == 0
+        && evidence.events_lost == 0
+        && evidence.buffers_lost == 0
+}
+
+pub(super) fn workload_complete(evidence: &crate::WorkloadEvidence) -> bool {
+    evidence.attempted && evidence.completed && evidence.cleanup_succeeded
 }
 
 fn finish_disconnect_report(report: &mut GateReport) {
@@ -141,84 +199,4 @@ fn fail_for_service_stop(report: &mut GateReport, outcome: &'static str) {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::path::PathBuf;
-
-    use crate::{GateOptions, GateStatus};
-
-    use super::*;
-
-    #[test]
-    fn partial_process_coverage_can_pass_without_trace_loss() {
-        let options = GateOptions {
-            output_directory: PathBuf::from("reports"),
-            run_id: "run-1".to_owned(),
-            duration_seconds: 8,
-            mode: GateMode::ContinuousValidation,
-        };
-        let mut report = GateReport::new(&options, "StorPulseCollector");
-        report.protocol_completed = true;
-        report.service_stopped = true;
-        report.workload.attempted = true;
-        report.workload.completed = true;
-        report.workload.cleanup_succeeded = true;
-        report.snapshots.snapshot_count = 4;
-        report.snapshots.partial_snapshots = 4;
-        report.snapshots.max_restricted_processes = 3;
-        report.snapshots.client_process_observed = true;
-        report.snapshots.client_read_bytes = 32 * 1_048_576;
-        report.snapshots.device_read_bytes = 32 * 1_048_576;
-
-        finish_report(&mut report);
-
-        assert_eq!(report.status, GateStatus::Completed);
-        assert_eq!(report.outcome, "windows_continuous_gate_completed");
-    }
-
-    #[test]
-    fn trace_loss_keeps_continuous_gate_restricted() {
-        let options = GateOptions {
-            output_directory: PathBuf::from("reports"),
-            run_id: "run-2".to_owned(),
-            duration_seconds: 8,
-            mode: GateMode::ContinuousValidation,
-        };
-        let mut report = GateReport::new(&options, "StorPulseCollector");
-        report.protocol_completed = true;
-        report.service_stopped = true;
-        report.workload.completed = true;
-        report.workload.cleanup_succeeded = true;
-        report.snapshots.snapshot_count = 4;
-        report.snapshots.client_process_observed = true;
-        report.snapshots.client_read_bytes = 1;
-        report.snapshots.device_read_bytes = 1;
-        report.snapshots.events_lost = 1;
-
-        finish_report(&mut report);
-
-        assert_eq!(report.status, GateStatus::Restricted);
-    }
-
-    #[test]
-    fn connection_timeout_requires_service_specific_timeout_exit() {
-        let options = GateOptions {
-            output_directory: PathBuf::from("reports"),
-            run_id: "run-timeout".to_owned(),
-            duration_seconds: 8,
-            mode: GateMode::ConnectTimeoutCleanup,
-        };
-        let mut report = GateReport::new(&options, "StorPulseCollector");
-        report.service_stopped = true;
-        report.service_win32_exit_code = Some(1066);
-        report.service_specific_exit_code = Some(1460);
-
-        finish_report(&mut report);
-
-        assert_eq!(report.status, GateStatus::Completed);
-        assert!(report.connect_timeout_confirmed);
-        assert_eq!(
-            report.outcome,
-            "windows_service_connect_timeout_cleanup_completed"
-        );
-    }
-}
+mod tests;

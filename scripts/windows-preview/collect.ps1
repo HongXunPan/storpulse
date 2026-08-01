@@ -5,6 +5,7 @@
         "windows-stage1-disconnect-cleanup",
         "windows-stage1-connect-timeout-cleanup",
         "windows-stage1-client-termination-cleanup",
+        "windows-stage1-sleep-resume-validation",
         "package-validation"
     )]
     [string]$StageName,
@@ -38,6 +39,7 @@ $GateMode = switch ($StageName) {
     "windows-stage1-disconnect-cleanup" { "disconnect_cleanup" }
     "windows-stage1-connect-timeout-cleanup" { "connect_timeout_cleanup" }
     "windows-stage1-client-termination-cleanup" { "client_termination_cleanup" }
+    "windows-stage1-sleep-resume-validation" { "sleep_resume_validation" }
     default { "continuous_validation" }
 }
 
@@ -48,6 +50,7 @@ $FailureType = $null
 $FailureHResult = $null
 $ClientExitCode = $null
 $ClientFinished = $false
+$SleepResumePromptShown = $false
 $PackageCommit = "unknown"
 $ClientHashMatches = $false
 $InstalledServiceHashMatches = $false
@@ -133,6 +136,7 @@ try {
         -GateMode $GateMode
     $ClientFinished = [bool]$ClientRun.finished
     $ClientExitCode = $ClientRun.exitCode
+    $SleepResumePromptShown = [bool]$ClientRun.sleepResumePromptShown
     if (-not $ClientFinished) {
         throw "client_timeout"
     }
@@ -242,6 +246,7 @@ $Capabilities = [ordered]@{
     installedServiceHashMatches = $InstalledServiceHashMatches
     clientFinished = $ClientFinished
     clientExitCode = $ClientExitCode
+    sleepResumePromptShown = $SleepResumePromptShown
 }
 $DiagnosticManifest = [ordered]@{
     schemaVersion = 1
