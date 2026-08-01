@@ -123,7 +123,8 @@ Windows 10 22H2 x64 已确认仅加入“性能日志用户”组仍得到 `Star
 当前门禁边界：
 
 - Windows 10 22H2 x64：标准用户和“性能日志用户”均得到 `StartTraceW=5`，管理员模式可以完成 ETW DiskIo 与 40 个短命进程归因；该候选权限门禁已收口但未通过标准权限要求。
-- Windows 10 结果不等于 Windows 11 正式门禁，也不放行 Windows 阶段 1–3。
+- Windows 10 按需 LocalSystem 服务最小候选门禁已经通过，后续持续采集与诊断边界见[Windows 持续采集与诊断契约](Windows持续采集与诊断契约.md)。
+- Windows 10 结果不等于 Windows 11 实机门禁，也不直接放行 Windows 阶段 1–3。
 - Windows Server / GitHub runner 结果：只证明自动构建与日志结构，不证明桌面系统行为。
 - `GetProcessIoCounters`：始终标记为广义进程 I/O，不作为磁盘专属归因。
 - 不缓存读取：只绕过 Windows 系统文件缓存，不声称绕过硬件缓存；访问大小和缓冲区必须分别满足逻辑与物理扇区对齐要求。

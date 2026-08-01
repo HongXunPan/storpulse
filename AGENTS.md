@@ -4,8 +4,8 @@
 
 ## 一、项目定位
 
-1. 当前只交付 macOS Intel 开发者预览；Windows、Apple Silicon、旧版 macOS、签名与正式分发保持未验证。
-2. Rust 共享内核只承载跨平台稳定语义；Swift 适配器负责 macOS 系统 API，SwiftUI/AppKit 负责平台界面。
+1. macOS Intel 开发者预览已完成阶段 1–3 源码；Windows x64 开发者预览进入分阶段实现，Windows 10 按需服务候选门禁已通过，Windows 11 仍待独立实机验证。Apple Silicon、旧版 macOS、签名与正式分发保持未验证。
+2. Rust 共享内核只承载跨平台稳定语义；macOS 使用 SwiftUI/AppKit，Windows 使用 C#/WinUI 3 与 Win32 通知区域。平台 API、权限与元数据留在各自适配器。
 3. 设备 I/O、存储层进程 I/O、广义进程 I/O、文件事件与物理介质写入必须保持不同口径。
 4. 不可读取、过期、重置或不支持必须显式表达，不得用零值或推测补齐。
 
@@ -13,6 +13,7 @@
 
 - `crates/`：Rust 共享领域、引擎与 C ABI。
 - `platform/macos/`：macOS 采集、应用、持久化与 Swift 测试。
+- `platform/windows/`：Windows 适配器、按需服务、原生应用、诊断契约与平台测试。
 - `tools/`：阶段探针和只读诊断入口。
 - `scripts/`：可复制验证脚本，不承载产品运行逻辑。
 - `docs/`：公开技术选型、验证边界和用户可见说明。
@@ -21,15 +22,16 @@
 ## 三、实现约束
 
 1. 采样、差值、聚合、活动识别、持久化和展示分别建立可测试边界。
-2. 进程身份至少使用 PID 与启动时间；完整路径只允许在 macOS 适配器内存中短暂参与应用识别。
+2. 进程身份至少使用 PID 与启动时间；完整路径只允许在平台适配器内存中短暂参与应用识别。
 3. FFI 只传递版本化批量 JSON、用户命令和拥有明确释放函数的缓冲区，不暴露 Rust 对象生命周期。
 4. 历史默认关闭；关闭时不得创建数据库或主动周期性落盘。
 5. 新依赖必须先在 `docs/工程代码技术选型.md` 记录必要性、许可证、平台影响和替代方案。
 6. 代码文件软阈值 320 行、硬阈值 520 行；命中软阈值先判断拆分，命中硬阈值停止追加。
+7. Windows 异常记录只保存稳定安全字段并限量轮转；诊断 ZIP 必须由用户主动导出，不自动上传日志、遥测、崩溃转储或原始 ETL。
 
 ## 四、验证与停机
 
-1. 日常验证入口为 `scripts/validate.sh`；阶段探针入口为 `scripts/validate_stage0_macos.sh`。
+1. 日常验证入口为 `scripts/validate.sh`；平台探针入口为 `scripts/validate_stage0_macos.sh` 与 `scripts/validate_stage0_windows.ps1`。
 2. 允许 `cargo check/test/clippy`、`swift test` 与 `xcodebuild test`；未经明确指令禁止 build、archive、签名、打包和发布。
 3. 临时数据和 DerivedData 必须放在仓内 `.codex-tmp/`，任务结束清理。
 4. 指标语义不明、PID 串账、负速率、自身周期性落盘、真实校验失败或文件命中硬预算时立即停止并重新规划。
