@@ -29,11 +29,11 @@
 
 ## 4. 反馈内容
 
-若未通过，保留命令行中的最后一个 `stage`，以及出现时的 `failure_source`、`failure_stage`、`exception_type`、`hresult`、`exit_code` 和可见错误文字，并反馈：
+若未通过，保留命令行中的最后一个 `stage`，以及出现时的 `failure_source`、`failure_stage`、`exception_type`、`hresult`、`exception_message`、`framework_message`、`inner_exception_*`、`*_xaml_line`、`*_xaml_position`、`exit_code` 和可见错误文字，并反馈：
 
 - Windows 产品版本、显示版本、内部版本和 x64 架构；
 - 是否为标准用户、是否出现 UAC；
 - 窗口是否出现，以及失败发生在启动、滚动、排序、选择还是关闭；
 - 当前 artifact 对应的提交 SHA。
 
-阶段码和异常码只输出到当前命令行，不写入磁盘；本阶段应用不会生成诊断 ZIP、日志、崩溃转储或自动上传内容。不要提供用户名、完整路径、命令行参数、机器标识或包含其他应用隐私信息的截图。
+阶段码和异常详情只输出到当前命令行，不写入磁盘；异常消息会压缩为单行、限制长度，并在检测到路径、SID 等敏感内容时整体替换为脱敏标记。本阶段应用不会生成诊断 ZIP、日志、崩溃转储或自动上传内容。不要提供用户名、完整路径、命令行参数、机器标识或包含其他应用隐私信息的截图。

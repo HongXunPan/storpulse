@@ -47,6 +47,9 @@ public partial class App : Application
         object sender,
         Microsoft.UI.Xaml.UnhandledExceptionEventArgs args)
     {
-        ShellGateConsoleReporter.Failure("xaml_unhandled_exception", args.Exception);
+        ShellGateConsoleReporter.Failure(
+            "xaml_unhandled_exception",
+            args.Exception,
+            args.Message);
     }
 }
