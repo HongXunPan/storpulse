@@ -179,7 +179,7 @@ pub(super) fn complete_protocol(
         Instant::now() + MESSAGE_TIMEOUT,
         None,
     )?;
-    receive_until_stopped(&pipe, &mut session, report)?;
+    receive_until_stopped(pipe, session, report)?;
     pipe.write_message_until(
         &ClientMessage::AcknowledgeStop {
             protocol_version: PROTOCOL_VERSION,

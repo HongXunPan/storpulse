@@ -173,7 +173,7 @@ fn receive_snapshot(
     else {
         return Err(ClientError::protocol("expected_snapshot"));
     };
-    Ok((sequence, snapshot))
+    Ok((sequence, *snapshot))
 }
 
 fn record_phase_snapshot(
