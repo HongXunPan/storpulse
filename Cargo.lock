@@ -114,9 +114,11 @@ dependencies = [
 name = "storpulse-windows-service-runtime"
 version = "0.1.0"
 dependencies = [
+ "serde",
  "serde_json",
  "storpulse-core",
  "storpulse-windows-service-contract",
+ "windows-sys",
 ]
 
 [[package]]
