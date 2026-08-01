@@ -14,6 +14,8 @@ $RequiredRootFiles = @(
     "安装 StorPulse 按需服务.cmd",
     "验证持续采集.cmd",
     "收集断连清理.cmd",
+    "验证连接超时清理.cmd",
+    "验证客户端强杀清理.cmd",
     "卸载 StorPulse 按需服务.cmd",
     "Windows持续采集实机验证指南.md",
     "反馈问题.url"
@@ -21,10 +23,12 @@ $RequiredRootFiles = @(
 $RequiredScripts = @(
     "collect-environment.ps1",
     "collect.ps1",
+    "diagnostic-export.ps1",
     "install-service.ps1",
     "invoke-client.ps1",
     "launch-service-install.ps1",
     "launch-service-uninstall.ps1",
+    "lifecycle-gates.ps1",
     "privacy.ps1",
     "uninstall-service.ps1"
 )
@@ -80,13 +84,31 @@ $EnvironmentText = [System.IO.File]::ReadAllText(
     (Join-Path $PackageRoot "scripts/collect-environment.ps1"),
     [System.Text.Encoding]::UTF8
 )
+$ExportText = [System.IO.File]::ReadAllText(
+    (Join-Path $PackageRoot "scripts/diagnostic-export.ps1"),
+    [System.Text.Encoding]::UTF8
+)
+$LifecycleText = [System.IO.File]::ReadAllText(
+    (Join-Path $PackageRoot "scripts/lifecycle-gates.ps1"),
+    [System.Text.Encoding]::UTF8
+)
+$InvokeClientText = [System.IO.File]::ReadAllText(
+    (Join-Path $PackageRoot "scripts/invoke-client.ps1"),
+    [System.Text.Encoding]::UTF8
+)
 if ($CollectorText.Contains("-Verb RunAs") -or
     -not $CollectorText.Contains("standard_user_required") -or
     -not $CollectorText.Contains("service_config_query_unavailable") -or
     -not $CollectorText.Contains("serviceConfigReadable = `$ServiceConfigReadable") -or
     -not $EnvironmentText.Contains("function Get-InstalledServiceState") -or
-    -not $CollectorText.Contains("Test-DiagnosticArchivePrivacy") -or
-    -not $CollectorText.Contains("unexpected_diagnostic_content")) {
+    -not $ExportText.Contains("Test-DiagnosticArchivePrivacy") -or
+    -not $ExportText.Contains("unexpected_diagnostic_content") -or
+    -not $LifecycleText.Contains("function Complete-ClientTerminationGate") -or
+    -not $LifecycleText.Contains('ExpectedTerminationExitCode = 197') -or
+    -not $LifecycleText.Contains('snapshotCount -ge 3') -or
+    -not $CollectorText.Contains('$Summary.status -ne "completed"') -or
+    -not $InvokeClientText.Contains("--connect-timeout-validation") -or
+    -not $InvokeClientText.Contains("--terminate-after-collection-started")) {
     throw "采集脚本没有保持标准用户或缺少归档白名单隐私检查"
 }
 
@@ -94,6 +116,8 @@ $EntryChecks = [ordered]@{
     "安装 StorPulse 按需服务.cmd" = "launch-service-install.ps1"
     "验证持续采集.cmd" = "windows-stage1-continuous-validation"
     "收集断连清理.cmd" = "windows-stage1-disconnect-cleanup"
+    "验证连接超时清理.cmd" = "windows-stage1-connect-timeout-cleanup"
+    "验证客户端强杀清理.cmd" = "windows-stage1-client-termination-cleanup"
     "卸载 StorPulse 按需服务.cmd" = "launch-service-uninstall.ps1"
 }
 foreach ($Entry in $EntryChecks.GetEnumerator()) {

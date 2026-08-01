@@ -73,3 +73,37 @@ function Get-InstalledServiceState {
         hashMatches = $ActualHash.ToLowerInvariant() -eq $ExpectedSha256.ToLowerInvariant()
     }
 }
+
+function Wait-StorPulseServiceStopped {
+    param(
+        [Parameter(Mandatory = $true)] [string]$ServiceName,
+        [ValidateRange(5, 90)] [int]$TimeoutSeconds = 45
+    )
+
+    $Deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+    do {
+        $ServiceRecord = Get-CimInstance -ClassName Win32_Service `
+            -Filter ("Name='{0}'" -f $ServiceName)
+        if ($null -eq $ServiceRecord) {
+            return [pscustomobject]@{
+                stopped = $false
+                win32ExitCode = $null
+                serviceSpecificExitCode = $null
+            }
+        }
+        if ($ServiceRecord.State -eq "Stopped") {
+            return [pscustomobject]@{
+                stopped = $true
+                win32ExitCode = [int]$ServiceRecord.ExitCode
+                serviceSpecificExitCode = [int]$ServiceRecord.ServiceSpecificExitCode
+            }
+        }
+        Start-Sleep -Milliseconds 200
+    } while ([DateTime]::UtcNow -lt $Deadline)
+
+    return [pscustomobject]@{
+        stopped = $false
+        win32ExitCode = [int]$ServiceRecord.ExitCode
+        serviceSpecificExitCode = [int]$ServiceRecord.ServiceSpecificExitCode
+    }
+}

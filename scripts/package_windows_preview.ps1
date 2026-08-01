@@ -34,10 +34,12 @@ Copy-Item -LiteralPath $ClientBinaryPath -Destination $ClientDestination
 $ScriptNames = @(
     "collect-environment.ps1",
     "collect.ps1",
+    "diagnostic-export.ps1",
     "install-service.ps1",
     "invoke-client.ps1",
     "launch-service-install.ps1",
     "launch-service-uninstall.ps1",
+    "lifecycle-gates.ps1",
     "privacy.ps1",
     "uninstall-service.ps1"
 )
@@ -52,6 +54,10 @@ Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-preview/validate-contin
     -Destination (Join-Path $PackageRoot "验证持续采集.cmd")
 Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-preview/collect-disconnect.cmd") `
     -Destination (Join-Path $PackageRoot "收集断连清理.cmd")
+Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-preview/collect-connect-timeout.cmd") `
+    -Destination (Join-Path $PackageRoot "验证连接超时清理.cmd")
+Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-preview/collect-client-termination.cmd") `
+    -Destination (Join-Path $PackageRoot "验证客户端强杀清理.cmd")
 Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-preview/uninstall-service.cmd") `
     -Destination (Join-Path $PackageRoot "卸载 StorPulse 按需服务.cmd")
 Copy-Item -LiteralPath (Join-Path $Root "docs/Windows持续采集实机验证指南.md") `

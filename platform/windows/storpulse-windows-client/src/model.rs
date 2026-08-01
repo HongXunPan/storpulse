@@ -7,7 +7,7 @@ pub struct GateOptions {
     pub output_directory: PathBuf,
     pub run_id: String,
     pub duration_seconds: u64,
-    pub disconnect_after_ready: bool,
+    pub mode: GateMode,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -15,6 +15,8 @@ pub struct GateOptions {
 pub enum GateMode {
     ContinuousValidation,
     DisconnectCleanup,
+    ConnectTimeoutCleanup,
+    ClientTerminationCleanup,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -94,9 +96,13 @@ pub struct GateReport {
     pub client_process_id: u32,
     pub client_elevated: Option<bool>,
     pub service_process_id: Option<u32>,
+    pub service_win32_exit_code: Option<u32>,
+    pub service_specific_exit_code: Option<u32>,
     pub protocol_completed: bool,
     pub service_stopped: bool,
     pub disconnect_cleanup_confirmed: bool,
+    pub connect_timeout_confirmed: bool,
+    pub client_termination_cleanup_confirmed: bool,
     pub snapshots: SnapshotEvidence,
     pub workload: WorkloadEvidence,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -110,20 +116,20 @@ impl GateReport {
         Self {
             schema_version: 1,
             run_id: options.run_id.clone(),
-            mode: if options.disconnect_after_ready {
-                GateMode::DisconnectCleanup
-            } else {
-                GateMode::ContinuousValidation
-            },
+            mode: options.mode,
             status: GateStatus::Failed,
             outcome: "windows_continuous_gate_failed",
             service_name,
             client_process_id: std::process::id(),
             client_elevated: None,
             service_process_id: None,
+            service_win32_exit_code: None,
+            service_specific_exit_code: None,
             protocol_completed: false,
             service_stopped: false,
             disconnect_cleanup_confirmed: false,
+            connect_timeout_confirmed: false,
+            client_termination_cleanup_confirmed: false,
             snapshots: SnapshotEvidence::default(),
             workload: WorkloadEvidence::default(),
             failure: None,

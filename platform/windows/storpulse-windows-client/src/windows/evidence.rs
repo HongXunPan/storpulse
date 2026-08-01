@@ -52,9 +52,16 @@ pub(super) fn record_snapshot(
 }
 
 pub(super) fn finish_report(report: &mut GateReport) {
-    if report.mode == GateMode::DisconnectCleanup {
-        finish_disconnect_report(report);
-        return;
+    match report.mode {
+        GateMode::DisconnectCleanup => return finish_disconnect_report(report),
+        GateMode::ConnectTimeoutCleanup => return finish_connect_timeout_report(report),
+        GateMode::ClientTerminationCleanup => {
+            return fail_for_service_stop(
+                report,
+                "windows_client_termination_cleanup_not_triggered",
+            );
+        }
+        GateMode::ContinuousValidation => {}
     }
     if !report.service_stopped {
         fail_for_service_stop(report, "windows_continuous_gate_failed");
@@ -80,11 +87,12 @@ pub(super) fn finish_report(report: &mut GateReport) {
     }
 }
 
-pub(super) fn failure_outcome(disconnect_after_ready: bool) -> &'static str {
-    if disconnect_after_ready {
-        "windows_service_disconnect_cleanup_failed"
-    } else {
-        "windows_continuous_gate_failed"
+pub(super) fn failure_outcome(mode: GateMode) -> &'static str {
+    match mode {
+        GateMode::ContinuousValidation => "windows_continuous_gate_failed",
+        GateMode::DisconnectCleanup => "windows_service_disconnect_cleanup_failed",
+        GateMode::ConnectTimeoutCleanup => "windows_service_connect_timeout_cleanup_failed",
+        GateMode::ClientTerminationCleanup => "windows_client_termination_cleanup_failed",
     }
 }
 
@@ -95,6 +103,30 @@ fn finish_disconnect_report(report: &mut GateReport) {
         report.outcome = "windows_service_disconnect_cleanup_completed";
     } else {
         fail_for_service_stop(report, "windows_service_disconnect_cleanup_failed");
+    }
+}
+
+fn finish_connect_timeout_report(report: &mut GateReport) {
+    report.connect_timeout_confirmed = report.service_stopped
+        && report.service_win32_exit_code == Some(1066)
+        && report.service_specific_exit_code == Some(1460)
+        && report.snapshots.snapshot_count == 0
+        && !report.workload.attempted;
+    if report.connect_timeout_confirmed {
+        report.status = GateStatus::Completed;
+        report.outcome = "windows_service_connect_timeout_cleanup_completed";
+    } else if !report.service_stopped {
+        fail_for_service_stop(report, "windows_service_connect_timeout_cleanup_failed");
+    } else {
+        report.status = GateStatus::Failed;
+        report.outcome = "windows_service_connect_timeout_cleanup_failed";
+        report.failure = Some(SafeFailure::new(
+            "connection",
+            "connect_timeout_evidence_mismatch",
+            report
+                .service_specific_exit_code
+                .or(report.service_win32_exit_code),
+        ));
     }
 }
 
@@ -122,7 +154,7 @@ mod tests {
             output_directory: PathBuf::from("reports"),
             run_id: "run-1".to_owned(),
             duration_seconds: 8,
-            disconnect_after_ready: false,
+            mode: GateMode::ContinuousValidation,
         };
         let mut report = GateReport::new(&options, "StorPulseCollector");
         report.protocol_completed = true;
@@ -149,7 +181,7 @@ mod tests {
             output_directory: PathBuf::from("reports"),
             run_id: "run-2".to_owned(),
             duration_seconds: 8,
-            disconnect_after_ready: false,
+            mode: GateMode::ContinuousValidation,
         };
         let mut report = GateReport::new(&options, "StorPulseCollector");
         report.protocol_completed = true;
@@ -165,5 +197,28 @@ mod tests {
         finish_report(&mut report);
 
         assert_eq!(report.status, GateStatus::Restricted);
+    }
+
+    #[test]
+    fn connection_timeout_requires_service_specific_timeout_exit() {
+        let options = GateOptions {
+            output_directory: PathBuf::from("reports"),
+            run_id: "run-timeout".to_owned(),
+            duration_seconds: 8,
+            mode: GateMode::ConnectTimeoutCleanup,
+        };
+        let mut report = GateReport::new(&options, "StorPulseCollector");
+        report.service_stopped = true;
+        report.service_win32_exit_code = Some(1066);
+        report.service_specific_exit_code = Some(1460);
+
+        finish_report(&mut report);
+
+        assert_eq!(report.status, GateStatus::Completed);
+        assert!(report.connect_timeout_confirmed);
+        assert_eq!(
+            report.outcome,
+            "windows_service_connect_timeout_cleanup_completed"
+        );
     }
 }

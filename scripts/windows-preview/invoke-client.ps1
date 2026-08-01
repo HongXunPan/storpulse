@@ -6,7 +6,9 @@
         [Parameter(Mandatory = $true)] [int]$DurationSeconds,
         [Parameter(Mandatory = $true)] [string]$StandardOutputPath,
         [Parameter(Mandatory = $true)] [string]$StandardErrorPath,
-        [switch]$DisconnectAfterReady
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("continuous_validation", "disconnect_cleanup", "connect_timeout_cleanup", "client_termination_cleanup")]
+        [string]$GateMode
     )
 
     $StartInfo = New-Object System.Diagnostics.ProcessStartInfo
@@ -16,8 +18,10 @@
         '--run-id', $RunId,
         '--duration-seconds', $DurationSeconds
     )
-    if ($DisconnectAfterReady) {
-        $ClientArguments += "--disconnect-after-ready"
+    switch ($GateMode) {
+        "disconnect_cleanup" { $ClientArguments += "--disconnect-after-ready" }
+        "connect_timeout_cleanup" { $ClientArguments += "--connect-timeout-validation" }
+        "client_termination_cleanup" { $ClientArguments += "--terminate-after-collection-started" }
     }
     $StartInfo.Arguments = $ClientArguments -join " "
     $StartInfo.UseShellExecute = $false
@@ -31,10 +35,12 @@
     $Process.StartInfo = $StartInfo
     $Finished = $false
     $ExitCode = $null
+    $ProcessId = $null
     try {
         if (-not $Process.Start()) {
             throw "client_process_start_failed"
         }
+        $ProcessId = [int]$Process.Id
         $StandardOutputTask = $Process.StandardOutput.ReadToEndAsync()
         $StandardErrorTask = $Process.StandardError.ReadToEndAsync()
         $Finished = $Process.WaitForExit(($DurationSeconds + 120) * 1000)
@@ -57,5 +63,6 @@
     return [pscustomobject]@{
         finished = $Finished
         exitCode = $ExitCode
+        processId = $ProcessId
     }
 }

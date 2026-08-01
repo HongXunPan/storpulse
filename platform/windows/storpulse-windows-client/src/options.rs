@@ -1,14 +1,15 @@
 use std::ffi::OsString;
 use std::path::PathBuf;
 
-use storpulse_windows_client::GateOptions;
+use storpulse_windows_client::{GateMode, GateOptions};
 
 pub(crate) fn parse(arguments: Vec<OsString>) -> Result<GateOptions, &'static str> {
     let mut arguments = arguments.into_iter();
     let mut output_directory = None;
     let mut run_id = None;
     let mut duration_seconds = 8_u64;
-    let mut disconnect_after_ready = false;
+    let mut mode = GateMode::ContinuousValidation;
+    let mut mode_selected = false;
 
     while let Some(argument) = arguments.next() {
         match argument.to_string_lossy().as_ref() {
@@ -25,7 +26,19 @@ pub(crate) fn parse(arguments: Vec<OsString>) -> Result<GateOptions, &'static st
                     .parse::<u64>()
                     .map_err(|_| "invalid_duration")?;
             }
-            "--disconnect-after-ready" => disconnect_after_ready = true,
+            "--disconnect-after-ready" => {
+                select_mode(&mut mode, &mut mode_selected, GateMode::DisconnectCleanup)?
+            }
+            "--connect-timeout-validation" => select_mode(
+                &mut mode,
+                &mut mode_selected,
+                GateMode::ConnectTimeoutCleanup,
+            )?,
+            "--terminate-after-collection-started" => select_mode(
+                &mut mode,
+                &mut mode_selected,
+                GateMode::ClientTerminationCleanup,
+            )?,
             _ => return Err("unknown_argument"),
         }
     }
@@ -42,8 +55,21 @@ pub(crate) fn parse(arguments: Vec<OsString>) -> Result<GateOptions, &'static st
         output_directory,
         run_id,
         duration_seconds,
-        disconnect_after_ready,
+        mode,
     })
+}
+
+fn select_mode(
+    mode: &mut GateMode,
+    selected: &mut bool,
+    candidate: GateMode,
+) -> Result<(), &'static str> {
+    if *selected {
+        return Err("conflicting_gate_mode");
+    }
+    *mode = candidate;
+    *selected = true;
+    Ok(())
 }
 
 fn valid_run_id(value: &str) -> bool {
@@ -72,7 +98,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(options.duration_seconds, 15);
-        assert!(options.disconnect_after_ready);
+        assert_eq!(options.mode, GateMode::DisconnectCleanup);
     }
 
     #[test]
@@ -94,5 +120,38 @@ mod tests {
             "300".into(),
         ]);
         assert_eq!(invalid_duration.unwrap_err(), "invalid_duration");
+    }
+
+    #[test]
+    fn parses_timeout_and_termination_modes_but_rejects_conflicts() {
+        let timeout = parse(vec![
+            "--output".into(),
+            "reports".into(),
+            "--run-id".into(),
+            "run-timeout".into(),
+            "--connect-timeout-validation".into(),
+        ])
+        .unwrap();
+        assert_eq!(timeout.mode, GateMode::ConnectTimeoutCleanup);
+
+        let termination = parse(vec![
+            "--output".into(),
+            "reports".into(),
+            "--run-id".into(),
+            "run-termination".into(),
+            "--terminate-after-collection-started".into(),
+        ])
+        .unwrap();
+        assert_eq!(termination.mode, GateMode::ClientTerminationCleanup);
+
+        let conflicting = parse(vec![
+            "--output".into(),
+            "reports".into(),
+            "--run-id".into(),
+            "run-conflict".into(),
+            "--disconnect-after-ready".into(),
+            "--connect-timeout-validation".into(),
+        ]);
+        assert_eq!(conflicting.unwrap_err(), "conflicting_gate_mode");
     }
 }

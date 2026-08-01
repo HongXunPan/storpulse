@@ -10,7 +10,7 @@ use windows_sys::Win32::System::Services::{
 
 use super::ClientError;
 
-pub(super) fn start(nonce: &str) -> Result<(), ClientError> {
+pub(super) fn start(nonce: &str) -> Result<u32, ClientError> {
     let manager = ServiceHandle::open_manager()?;
     let service = manager.open_service(SERVICE_START | SERVICE_QUERY_STATUS)?;
     let status = service.query_status()?;
@@ -31,19 +31,33 @@ pub(super) fn start(nonce: &str) -> Result<(), ClientError> {
     service.wait_for_running(Instant::now() + Duration::from_secs(15))
 }
 
-pub(super) fn wait_until_stopped(deadline: Instant) -> Result<bool, ClientError> {
+pub(super) fn wait_until_stopped(deadline: Instant) -> Result<ServiceStopStatus, ClientError> {
     let manager = ServiceHandle::open_manager()?;
     let service = manager.open_service(SERVICE_QUERY_STATUS)?;
     loop {
         let status = service.query_status()?;
         if status.dwCurrentState == SERVICE_STOPPED {
-            return Ok(true);
+            return Ok(ServiceStopStatus {
+                stopped: true,
+                win32_exit_code: status.dwWin32ExitCode,
+                service_specific_exit_code: status.dwServiceSpecificExitCode,
+            });
         }
         if Instant::now() >= deadline {
-            return Ok(false);
+            return Ok(ServiceStopStatus {
+                stopped: false,
+                win32_exit_code: status.dwWin32ExitCode,
+                service_specific_exit_code: status.dwServiceSpecificExitCode,
+            });
         }
         std::thread::sleep(Duration::from_millis(100));
     }
+}
+
+pub(super) struct ServiceStopStatus {
+    pub stopped: bool,
+    pub win32_exit_code: u32,
+    pub service_specific_exit_code: u32,
 }
 
 struct ServiceHandle {
@@ -90,11 +104,11 @@ impl ServiceHandle {
         Ok(status)
     }
 
-    fn wait_for_running(&self, deadline: Instant) -> Result<(), ClientError> {
+    fn wait_for_running(&self, deadline: Instant) -> Result<u32, ClientError> {
         loop {
             let status = self.query_status()?;
             if status.dwCurrentState == SERVICE_RUNNING {
-                return Ok(());
+                return Ok(status.dwProcessId);
             }
             if status.dwCurrentState != SERVICE_START_PENDING {
                 let code = if status.dwWin32ExitCode == ERROR_SERVICE_SPECIFIC_ERROR {

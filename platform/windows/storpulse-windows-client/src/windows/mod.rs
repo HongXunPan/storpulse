@@ -15,7 +15,7 @@ use storpulse_windows_service_contract::{
     SNAPSHOT_SCHEMA_VERSION, ServiceMessage,
 };
 
-use crate::{GateOptions, GateReport, GateStatus};
+use crate::{GateMode, GateOptions, GateReport, GateStatus};
 
 use self::client_error::ClientError;
 use self::evidence::{failure_outcome, finish_report, record_snapshot};
@@ -32,7 +32,11 @@ pub fn run_gate(options: &GateOptions) -> GateReport {
 
     if service_started {
         match scm::wait_until_stopped(Instant::now() + SHUTDOWN_TIMEOUT) {
-            Ok(stopped) => report.service_stopped = stopped,
+            Ok(status) => {
+                report.service_stopped = status.stopped;
+                report.service_win32_exit_code = Some(status.win32_exit_code);
+                report.service_specific_exit_code = Some(status.service_specific_exit_code);
+            }
             Err(error) if result.is_ok() => report.failure = Some(error.safe_failure()),
             Err(_) => {}
         }
@@ -42,7 +46,7 @@ pub fn run_gate(options: &GateOptions) -> GateReport {
         Ok(()) => finish_report(&mut report),
         Err(error) => {
             report.status = GateStatus::Failed;
-            report.outcome = failure_outcome(options.disconnect_after_ready);
+            report.outcome = failure_outcome(options.mode);
             report.failure = Some(error.safe_failure());
         }
     }
@@ -65,8 +69,12 @@ fn run_session(
     }
 
     let nonce = auth::generate_nonce()?;
-    scm::start(&nonce)?;
+    report.service_process_id = Some(scm::start(&nonce)?);
     *service_started = true;
+
+    if options.mode == GateMode::ConnectTimeoutCleanup {
+        return Ok(());
+    }
 
     let pipe = ProductPipe::connect_client(Instant::now() + CONNECTION_TIMEOUT, None)?;
     let mut session = CollectionSession::default();
@@ -92,7 +100,7 @@ fn run_session(
     };
     report.service_process_id = Some(service_process_id);
 
-    if options.disconnect_after_ready {
+    if options.mode == GateMode::DisconnectCleanup {
         drop(pipe);
         return Ok(());
     }
@@ -116,6 +124,9 @@ fn run_continuous(
     let started = receive(&pipe, &mut session, Instant::now() + MESSAGE_TIMEOUT)?;
     if !matches!(started, ServiceMessage::CollectionStarted { .. }) {
         return Err(ClientError::protocol("expected_collection_started"));
+    }
+    if options.mode == GateMode::ClientTerminationCleanup {
+        terminate_process_for_gate();
     }
 
     report.workload.attempted = true;
@@ -170,6 +181,17 @@ fn run_continuous(
         .recv_timeout(WORKLOAD_COMPLETION_TIMEOUT)
         .map_err(|_| ClientError::new("workload", "workload_timeout", Some(1460)))??;
     Ok(())
+}
+
+fn terminate_process_for_gate() -> ! {
+    // SAFETY：当前进程伪句柄始终有效；测试客户端用固定非零退出码模拟外部强杀。
+    unsafe {
+        windows_sys::Win32::System::Threading::TerminateProcess(
+            windows_sys::Win32::System::Threading::GetCurrentProcess(),
+            197,
+        );
+    }
+    std::process::abort()
 }
 
 fn receive_until_stopped(

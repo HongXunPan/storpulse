@@ -61,6 +61,8 @@ if 'storpulse-diagnostics-{0}-{1}.zip' not in collector_text:
 preview_entries = {
     "validate-continuous.cmd": "windows-stage1-continuous-validation",
     "collect-disconnect.cmd": "windows-stage1-disconnect-cleanup",
+    "collect-connect-timeout.cmd": "windows-stage1-connect-timeout-cleanup",
+    "collect-client-termination.cmd": "windows-stage1-client-termination-cleanup",
 }
 for filename, stage in preview_entries.items():
     text = (root / "scripts" / "windows-preview" / filename).read_text(encoding="utf-8-sig")
@@ -73,11 +75,20 @@ preview_collector = (root / "scripts" / "windows-preview" / "collect.ps1").read_
 preview_environment = (
     root / "scripts" / "windows-preview" / "collect-environment.ps1"
 ).read_text(encoding="utf-8-sig")
+preview_export = (
+    root / "scripts" / "windows-preview" / "diagnostic-export.ps1"
+).read_text(encoding="utf-8-sig")
+preview_lifecycle = (
+    root / "scripts" / "windows-preview" / "lifecycle-gates.ps1"
+).read_text(encoding="utf-8-sig")
+preview_invoke_client = (
+    root / "scripts" / "windows-preview" / "invoke-client.ps1"
+).read_text(encoding="utf-8-sig")
 if (
     'storpulse-diagnostics-{0}-{1}.zip' not in preview_collector
-    or "Test-DiagnosticArchivePrivacy" not in preview_collector
+    or "Test-DiagnosticArchivePrivacy" not in preview_export
     or "standard_user_required" not in preview_collector
-    or "unexpected_diagnostic_content" not in preview_collector
+    or "unexpected_diagnostic_content" not in preview_export
 ):
     raise SystemExit("Windows 持续采集入口缺少阶段命名、标准用户或归档白名单门禁")
 
@@ -96,6 +107,12 @@ if (
     "service_config_query_unavailable" not in preview_collector
     or "serviceConfigReadable = $ServiceConfigReadable" not in preview_collector
     or "function Get-InstalledServiceState" not in preview_environment
+    or "function Complete-ClientTerminationGate" not in preview_lifecycle
+    or "$ExpectedTerminationExitCode = 197" not in preview_lifecycle
+    or "snapshotCount -ge 3" not in preview_lifecycle
+    or '$Summary.status -ne "completed"' not in preview_collector
+    or "--connect-timeout-validation" not in preview_invoke_client
+    or "--terminate-after-collection-started" not in preview_invoke_client
 ):
     raise SystemExit("Windows 持续采集诊断缺少服务配置可读性结果")
 

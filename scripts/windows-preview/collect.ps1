@@ -1,12 +1,17 @@
 ﻿param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("windows-stage1-continuous-validation", "windows-stage1-disconnect-cleanup", "package-validation")]
+    [ValidateSet(
+        "windows-stage1-continuous-validation",
+        "windows-stage1-disconnect-cleanup",
+        "windows-stage1-connect-timeout-cleanup",
+        "windows-stage1-client-termination-cleanup",
+        "package-validation"
+    )]
     [string]$StageName,
 
     [ValidateRange(5, 60)]
     [int]$DurationSeconds = 8,
 
-    [switch]$DisconnectAfterReady,
     [switch]$NoPause
 )
 
@@ -16,6 +21,8 @@ $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "collect-environment.ps1")
 . (Join-Path $PSScriptRoot "invoke-client.ps1")
 . (Join-Path $PSScriptRoot "privacy.ps1")
+. (Join-Path $PSScriptRoot "diagnostic-export.ps1")
+. (Join-Path $PSScriptRoot "lifecycle-gates.ps1")
 
 $PackageRoot = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
 $ClientPath = Join-Path $PackageRoot "storpulse-windows-client.exe"
@@ -27,30 +34,11 @@ $RunDirectory = Join-Path $DiagnosticsRoot $RunId
 $ArchivePath = Join-Path $DiagnosticsRoot ("storpulse-diagnostics-{0}-{1}.zip" -f $StageName, $RunId)
 $StandardOutputPath = Join-Path $RunDirectory ".client-stdout.txt"
 $StandardErrorPath = Join-Path $RunDirectory ".client-stderr.txt"
-
-function Write-Utf8Json {
-    param(
-        [Parameter(Mandatory = $true)] [string]$Path,
-        [Parameter(Mandatory = $true)] $Value
-    )
-
-    $Encoding = New-Object System.Text.UTF8Encoding($false)
-    [System.IO.File]::WriteAllText(
-        $Path,
-        ($Value | ConvertTo-Json -Depth 12),
-        $Encoding
-    )
-}
-
-function Read-SafeConsole {
-    param([Parameter(Mandatory = $true)] [string]$Path)
-
-    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
-        return @()
-    }
-    $Lines = @([System.IO.File]::ReadAllLines($Path, [System.Text.Encoding]::UTF8))
-    Remove-Item -Force -LiteralPath $Path
-    return $Lines
+$GateMode = switch ($StageName) {
+    "windows-stage1-disconnect-cleanup" { "disconnect_cleanup" }
+    "windows-stage1-connect-timeout-cleanup" { "connect_timeout_cleanup" }
+    "windows-stage1-client-termination-cleanup" { "client_termination_cleanup" }
+    default { "continuous_validation" }
 }
 
 $CollectorStatus = "initializing"
@@ -142,22 +130,35 @@ try {
         -DurationSeconds $DurationSeconds `
         -StandardOutputPath $StandardOutputPath `
         -StandardErrorPath $StandardErrorPath `
-        -DisconnectAfterReady:$DisconnectAfterReady
+        -GateMode $GateMode
     $ClientFinished = [bool]$ClientRun.finished
     $ClientExitCode = $ClientRun.exitCode
     if (-not $ClientFinished) {
         throw "client_timeout"
     }
 
-    $FailureStage = "read_summary"
-    $FailureSafeErrorCode = "summary_validation_failed"
-    $SummaryPath = Join-Path $RunDirectory "summary.json"
-    if (-not (Test-Path -LiteralPath $SummaryPath -PathType Leaf)) {
-        throw "summary_missing"
+    if ($GateMode -eq "client_termination_cleanup") {
+        $FailureStage = "validate_client_termination_cleanup"
+        $FailureSafeErrorCode = "client_termination_cleanup_failed"
+        $Summary = Complete-ClientTerminationGate `
+            -ClientPath $ClientPath `
+            -RunDirectory $RunDirectory `
+            -RunId $RunId `
+            -ClientRun $ClientRun
     }
-    $Summary = [System.IO.File]::ReadAllText($SummaryPath, [System.Text.Encoding]::UTF8) |
-        ConvertFrom-Json
-    if ($Summary.runId -ne $RunId -or $Summary.serviceName -ne "StorPulseCollector") {
+    else {
+        $FailureStage = "read_summary"
+        $FailureSafeErrorCode = "summary_validation_failed"
+        $SummaryPath = Join-Path $RunDirectory "summary.json"
+        if (-not (Test-Path -LiteralPath $SummaryPath -PathType Leaf)) {
+            throw "summary_missing"
+        }
+        $Summary = [System.IO.File]::ReadAllText($SummaryPath, [System.Text.Encoding]::UTF8) |
+            ConvertFrom-Json
+    }
+    if ($Summary.runId -ne $RunId -or
+        $Summary.serviceName -ne "StorPulseCollector" -or
+        $Summary.mode -ne $GateMode) {
         throw "summary_contract_mismatch"
     }
     $CollectorStatus = "completed"
@@ -198,6 +199,7 @@ if ($null -eq $Summary) {
     $Summary = [ordered]@{
         schemaVersion = 1
         runId = $RunId
+        mode = $GateMode
         status = "failed"
         outcome = "windows_client_not_completed"
         serviceName = "StorPulseCollector"
@@ -252,46 +254,15 @@ $DiagnosticManifest = [ordered]@{
     privacy = "只含平台能力、稳定错误码和聚合证据；不含原始 ETL、路径、命令行、用户名、SID 或 nonce"
 }
 
-Write-Utf8Json -Path (Join-Path $RunDirectory "manifest.json") -Value $DiagnosticManifest
-Write-Utf8Json -Path (Join-Path $RunDirectory "capabilities.json") -Value $Capabilities
-Write-Utf8Json -Path (Join-Path $RunDirectory "errors.json") -Value ([ordered]@{ schemaVersion = 1; errors = $Errors })
-$Encoding = New-Object System.Text.UTF8Encoding($false)
-[System.IO.File]::WriteAllLines((Join-Path $RunDirectory "console.log"), $ConsoleLines, $Encoding)
-
-$Privacy = Test-DiagnosticDirectoryPrivacy -Directory $RunDirectory -CurrentUserName ([Environment]::UserName)
-$AllowedFiles = @("manifest.json", "capabilities.json", "summary.json", "errors.json", "privacy-check.json", "console.log")
-$UnexpectedFiles = @(Get-ChildItem -LiteralPath $RunDirectory -File |
-    Where-Object { $AllowedFiles -notcontains $_.Name })
-$UnexpectedDirectories = @(Get-ChildItem -LiteralPath $RunDirectory -Directory)
-$AllowListPassed = $UnexpectedFiles.Count -eq 0 -and $UnexpectedDirectories.Count -eq 0
-$PrivacyViolations = @($Privacy.violations)
-if (-not $AllowListPassed) {
-    $PrivacyViolations += "unexpected_diagnostic_content"
-}
-$PrivacyCheck = [ordered]@{
-    schemaVersion = 1
-    rulesVersion = 1
-    preArchivePassed = [bool]$Privacy.passed -and $AllowListPassed
-    postArchivePassed = [bool]$Privacy.passed -and $AllowListPassed
-    checkedFileCount = [int]$Privacy.checkedFileCount + 1
-    violations = $PrivacyViolations
-}
-Write-Utf8Json -Path (Join-Path $RunDirectory "privacy-check.json") -Value $PrivacyCheck
-$FinalPrivacy = Test-DiagnosticDirectoryPrivacy -Directory $RunDirectory -CurrentUserName ([Environment]::UserName)
-$ArchiveCreated = $false
-if ($Privacy.passed -and $FinalPrivacy.passed -and $AllowListPassed) {
-    if (Test-Path -LiteralPath $ArchivePath) {
-        Remove-Item -Force -LiteralPath $ArchivePath
-    }
-    Compress-Archive -Path (Join-Path $RunDirectory "*") -DestinationPath $ArchivePath -CompressionLevel Optimal
-    $ArchivePrivacy = Test-DiagnosticArchivePrivacy -ArchivePath $ArchivePath -CurrentUserName ([Environment]::UserName)
-    if ($ArchivePrivacy.passed) {
-        $ArchiveCreated = $true
-    }
-    else {
-        Remove-Item -Force -LiteralPath $ArchivePath
-    }
-}
+$ExportResult = Export-StorPulseDiagnostic `
+    -RunDirectory $RunDirectory `
+    -ArchivePath $ArchivePath `
+    -Manifest $DiagnosticManifest `
+    -Capabilities $Capabilities `
+    -Summary $Summary `
+    -Errors $Errors `
+    -ConsoleLines $ConsoleLines
+$ArchiveCreated = [bool]$ExportResult.created
 
 Write-Host "诊断流程状态：$CollectorStatus"
 if ($null -ne $Summary) {
@@ -308,6 +279,8 @@ if (-not $NoPause) {
     Read-Host "按回车键退出" | Out-Null
 }
 
-if (-not $ArchiveCreated -or $CollectorStatus -ne "completed") {
+if (-not $ArchiveCreated -or
+    $CollectorStatus -ne "completed" -or
+    $Summary.status -ne "completed") {
     exit 1
 }
