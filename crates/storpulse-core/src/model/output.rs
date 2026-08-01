@@ -24,7 +24,8 @@ pub struct RealtimeProcess {
     pub run_read_bytes: u64,
     pub run_write_bytes: u64,
     pub continuous_io_duration_milliseconds: u64,
-    pub physical_footprint_bytes: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub physical_footprint_bytes: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -72,7 +72,7 @@ public struct RealtimeProcess: Codable, Equatable, Identifiable, Sendable {
     public let runReadBytes: UInt64
     public let runWriteBytes: UInt64
     public let continuousIODurationMilliseconds: UInt64
-    public let physicalFootprintBytes: UInt64
+    public let physicalFootprintBytes: UInt64?
 
     private enum CodingKeys: String, CodingKey {
         case identity

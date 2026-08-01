@@ -284,6 +284,9 @@ fn raw_snapshot(monotonic_nanoseconds: u64) -> RawSnapshot {
             exited_processes: 0,
             device_count: 1,
             collection_duration_nanoseconds: 1_000_000,
+            unmapped_disk_events: 0,
+            events_lost: 0,
+            buffers_lost: 0,
         },
     }
 }

@@ -1,0 +1,15 @@
+[package]
+name = "storpulse-windows-service-runtime"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+storpulse-core.workspace = true
+storpulse-windows-service-contract = { path = "../storpulse-windows-service-contract" }
+
+[dev-dependencies]
+serde_json.workspace = true

@@ -213,10 +213,10 @@ fn snapshot(
             launched_by_application_id: None,
             read_bytes: process_read,
             write_bytes: process_write,
-            user_time_nanoseconds: 0,
-            system_time_nanoseconds: 0,
-            resident_bytes: 0,
-            physical_footprint_bytes: 10,
+            user_time_nanoseconds: Some(0),
+            system_time_nanoseconds: Some(0),
+            resident_bytes: Some(0),
+            physical_footprint_bytes: Some(10),
         }],
         devices: vec![DeviceIoSample {
             device_id: "macos:ioreg:7".to_owned(),
@@ -232,6 +232,9 @@ fn snapshot(
             exited_processes: 0,
             device_count: 1,
             collection_duration_nanoseconds: 10_000_000,
+            unmapped_disk_events: 0,
+            events_lost: 0,
+            buffers_lost: 0,
         },
     }
 }

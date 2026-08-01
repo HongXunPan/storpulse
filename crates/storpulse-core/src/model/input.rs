@@ -52,14 +52,14 @@ pub struct ProcessIoSample {
     pub launched_by_application_id: Option<String>,
     pub read_bytes: u64,
     pub write_bytes: u64,
-    #[serde(default)]
-    pub user_time_nanoseconds: u64,
-    #[serde(default)]
-    pub system_time_nanoseconds: u64,
-    #[serde(default)]
-    pub resident_bytes: u64,
-    #[serde(default)]
-    pub physical_footprint_bytes: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub user_time_nanoseconds: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub system_time_nanoseconds: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resident_bytes: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub physical_footprint_bytes: Option<u64>,
 }
 
 impl ProcessIoSample {
@@ -97,6 +97,12 @@ pub struct CollectionSummary {
     pub exited_processes: usize,
     pub device_count: usize,
     pub collection_duration_nanoseconds: u64,
+    #[serde(default)]
+    pub unmapped_disk_events: u64,
+    #[serde(default)]
+    pub events_lost: u64,
+    #[serde(default)]
+    pub buffers_lost: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

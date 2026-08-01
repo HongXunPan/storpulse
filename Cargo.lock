@@ -111,6 +111,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "storpulse-windows-service-runtime"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "storpulse-core",
+ "storpulse-windows-service-contract",
+]
+
+[[package]]
 name = "syn"
 version = "3.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
