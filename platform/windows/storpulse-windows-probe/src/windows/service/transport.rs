@@ -26,7 +26,8 @@ use super::ServiceFailure;
 pub(super) const PIPE_NAME: &str = r"\\.\pipe\StorPulse.Stage0.Collector.v1";
 const PIPE_BUFFER_BYTES: u32 = 65_536;
 const CLIENT_PIPE_ACCESS: u32 = FILE_READ_DATA | FILE_WRITE_DATA | SYNCHRONIZE;
-const PIPE_SDDL: &str = "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;0x00100003;;;IU)";
+// LocalSystem 创建的管道默认处于系统完整性；显式使用中等完整性允许标准用户双向通信。
+const PIPE_SDDL: &str = "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;0x00100003;;;IU)S:(ML;;NW;;;ME)";
 
 pub(super) struct Pipe {
     handle: HANDLE,
@@ -262,4 +263,15 @@ impl Drop for SecurityDescriptor {
 
 fn wide(value: &str) -> Vec<u16> {
     value.encode_utf16().chain(std::iter::once(0)).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pipe_security_descriptor_keeps_medium_integrity_boundary() {
+        assert!(PIPE_SDDL.ends_with("S:(ML;;NW;;;ME)"));
+        assert!(SecurityDescriptor::new(PIPE_SDDL).is_ok());
+    }
 }
