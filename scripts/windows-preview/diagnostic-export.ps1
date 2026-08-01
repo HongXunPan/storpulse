@@ -64,8 +64,12 @@ function Export-StorPulseDiagnostic {
         [Parameter(Mandatory = $true)] $Manifest,
         [Parameter(Mandatory = $true)] $Capabilities,
         [Parameter(Mandatory = $true)] $Summary,
-        [Parameter(Mandatory = $true)] [array]$Errors,
-        [Parameter(Mandatory = $true)] [System.Collections.Generic.List[string]]$ConsoleLines
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [array]$Errors,
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [System.Collections.Generic.List[string]]$ConsoleLines
     )
 
     Write-Utf8Json -Path (Join-Path $RunDirectory "manifest.json") -Value $Manifest
