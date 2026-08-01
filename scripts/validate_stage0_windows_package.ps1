@@ -60,6 +60,17 @@ if ($Manifest.serviceName -ne "StorPulseStage0Collector" -or
     $Manifest.serviceStartType -ne "demand") {
     throw "成品包按需服务清单不匹配"
 }
+$InstallerPath = Join-Path $PackageRoot "scripts/install-service.ps1"
+$InstallerText = [System.IO.File]::ReadAllText($InstallerPath, [System.Text.Encoding]::UTF8)
+if (-not $InstallerText.Contains("New-Service @ServiceParameters") -or
+    $InstallerText.Contains('"create", $ServiceName')) {
+    throw "成品包安装脚本没有使用 PowerShell 原生服务创建入口"
+}
+$InstallEntryPath = Join-Path $PackageRoot "安装按需服务门禁.cmd"
+$InstallEntryText = [System.IO.File]::ReadAllText($InstallEntryPath, [System.Text.Encoding]::UTF8)
+if ($InstallEntryText -notmatch "(?m)^pause\r?$") {
+    throw "成品包安装入口不会保留启动失败输出"
+}
 if (Test-Path -LiteralPath $DiagnosticsRoot) {
     Remove-Item -Recurse -Force -LiteralPath $DiagnosticsRoot
 }
