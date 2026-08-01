@@ -12,8 +12,8 @@ use windows_sys::Win32::Security::Authorization::{
 };
 use windows_sys::Win32::Security::{PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES};
 use windows_sys::Win32::Storage::FileSystem::{
-    CreateFileW, FILE_FLAG_FIRST_PIPE_INSTANCE, FILE_WRITE_DATA, OPEN_EXISTING, PIPE_ACCESS_DUPLEX,
-    ReadFile, WriteFile,
+    CreateFileW, FILE_FLAG_FIRST_PIPE_INSTANCE, FILE_WRITE_ATTRIBUTES, FILE_WRITE_DATA,
+    OPEN_EXISTING, PIPE_ACCESS_DUPLEX, ReadFile, WriteFile,
 };
 use windows_sys::Win32::System::Pipes::{
     ConnectNamedPipe, CreateNamedPipeW, DisconnectNamedPipe, PIPE_NOWAIT, PIPE_READMODE_MESSAGE,
@@ -25,10 +25,10 @@ use super::ServiceFailure;
 
 pub(super) const PIPE_NAME: &str = r"\\.\pipe\StorPulse.Stage0.Collector.v1";
 const PIPE_BUFFER_BYTES: u32 = 65_536;
-const CLIENT_PIPE_ACCESS: u32 = GENERIC_READ | FILE_WRITE_DATA;
+const CLIENT_PIPE_ACCESS: u32 = GENERIC_READ | FILE_WRITE_DATA | FILE_WRITE_ATTRIBUTES;
 // LocalSystem 创建的管道默认处于系统完整性；显式使用中等完整性允许标准用户双向通信。
-// 交互用户只获得 FILE_GENERIC_READ 与 FILE_WRITE_DATA，不包含创建管道实例权限。
-const PIPE_SDDL: &str = "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;0x0012008b;;;IU)S:(ML;;NW;;;ME)";
+// 交互用户只获得读取、写入数据和切换读取模式所需权限，不包含创建管道实例权限。
+const PIPE_SDDL: &str = "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;0x0012018b;;;IU)S:(ML;;NW;;;ME)";
 
 pub(super) struct Pipe {
     handle: HANDLE,
@@ -122,6 +122,17 @@ impl Pipe {
                 )
             };
             if handle != INVALID_HANDLE_VALUE {
+                let mode = PIPE_READMODE_MESSAGE | PIPE_WAIT;
+                // SAFETY：客户端句柄有效；只把读取模式切换为阻塞消息模式。
+                if unsafe {
+                    SetNamedPipeHandleState(handle, &mode, std::ptr::null(), std::ptr::null())
+                } == 0
+                {
+                    let failure = ServiceFailure::last("ipc", "SetNamedPipeHandleState.client");
+                    // SAFETY：句柄由 CreateFileW 返回，失败路径在返回前关闭一次。
+                    unsafe { CloseHandle(handle) };
+                    return Err(failure);
+                }
                 return Ok(Self {
                     handle,
                     server: false,
@@ -172,7 +183,8 @@ impl Pipe {
                 return Err(ServiceFailure::new("ipc", "service_stop_requested", 995));
             }
             let mut available = 0;
-            // SAFETY：PeekNamedPipe 不移除数据；只查询当前可读字节数。
+            let mut message_bytes = 0;
+            // SAFETY：PeekNamedPipe 不移除数据；查询全部可读字节和当前消息剩余字节。
             let peeked = unsafe {
                 PeekNamedPipe(
                     self.handle,
@@ -180,19 +192,24 @@ impl Pipe {
                     0,
                     std::ptr::null_mut(),
                     &mut available,
-                    std::ptr::null_mut(),
+                    &mut message_bytes,
                 )
             };
             if peeked == 0 {
                 return Err(ServiceFailure::last("ipc", "PeekNamedPipe"));
             }
-            if available > PIPE_BUFFER_BYTES {
+            let readable = if message_bytes > 0 {
+                message_bytes
+            } else {
+                available
+            };
+            if readable > PIPE_BUFFER_BYTES {
                 return Err(ServiceFailure::new("ipc", "message_too_large", 122));
             }
-            if available > 0 {
-                let mut payload = vec![0_u8; available as usize];
+            if readable > 0 {
+                let mut payload = vec![0_u8; readable as usize];
                 let mut read = 0;
-                // SAFETY：缓冲区大小等于 PeekNamedPipe 报告的消息可读长度。
+                // SAFETY：缓冲区大小等于 PeekNamedPipe 报告的当前消息剩余长度。
                 let succeeded = unsafe {
                     ReadFile(
                         self.handle,
@@ -274,9 +291,12 @@ mod tests {
     fn client_pipe_access_excludes_create_instance_right() {
         const FILE_CREATE_PIPE_INSTANCE: u32 = 0x0000_0004;
 
-        assert_eq!(CLIENT_PIPE_ACCESS, GENERIC_READ | FILE_WRITE_DATA);
+        assert_eq!(
+            CLIENT_PIPE_ACCESS,
+            GENERIC_READ | FILE_WRITE_DATA | FILE_WRITE_ATTRIBUTES
+        );
         assert_eq!(CLIENT_PIPE_ACCESS & FILE_CREATE_PIPE_INSTANCE, 0);
-        assert!(PIPE_SDDL.contains("(A;;0x0012008b;;;IU)"));
+        assert!(PIPE_SDDL.contains("(A;;0x0012018b;;;IU)"));
     }
 
     #[test]
