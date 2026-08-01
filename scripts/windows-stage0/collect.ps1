@@ -3,6 +3,10 @@
     [ValidateSet("Standard", "PerformanceLogUser", "Administrator", "Service")]
     [string]$ExpectedMode,
 
+    [Parameter(Mandatory = $true)]
+    [ValidateSet("standard-collection", "performance-log-user-collection", "administrator-collection", "service-collection", "service-disconnect-validation", "package-validation")]
+    [string]$StageName,
+
     [ValidateRange(5, 300)]
     [int]$DurationSeconds = 15,
 
@@ -23,7 +27,7 @@ $ManifestPath = Join-Path $PackageRoot "package-manifest.json"
 $DiagnosticsRoot = Join-Path $PackageRoot "diagnostics"
 $RunId = "{0}-{1}" -f [DateTime]::UtcNow.ToString("yyyyMMddTHHmmssZ"), [Guid]::NewGuid().ToString("N").Substring(0, 8)
 $RunDirectory = Join-Path $DiagnosticsRoot $RunId
-$ArchivePath = Join-Path $DiagnosticsRoot ("storpulse-diagnostics-{0}.zip" -f $RunId)
+$ArchivePath = Join-Path $DiagnosticsRoot ("storpulse-diagnostics-{0}-{1}.zip" -f $StageName, $RunId)
 
 function Write-Utf8Json {
     param(

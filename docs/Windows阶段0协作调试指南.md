@@ -48,7 +48,7 @@ Windows Server、早期 Windows 10 和 Windows 11 也可以返回探索性日志
    不要直接双击 `storpulse-windows-probe.exe`；EXE 需要由采集脚本传入输出目录并完成哈希、权限和环境校验。
 3. 等待约 15–30 秒；期间会创建并删除约 64 MiB 顺序文件、使用按扇区对齐且绕过 Windows 系统文件缓存的方式读取该文件、创建 500 个小文件，并启动 40 个探针子进程分别执行 1 MiB 不缓存读取。
 4. 看到完成提示后按回车退出。
-5. 在 `diagnostics` 目录找到最新的 `storpulse-diagnostics-*.zip`。
+5. 在 `diagnostics` 目录找到最新的 `storpulse-diagnostics-standard-collection-*.zip`。
 
 标准用户结果是产品默认权限边界的首要证据。即使 ETW 被拒绝，脚本也会保留环境、Win32 错误码和受限进程计数，因此不要只发截图。
 
@@ -74,9 +74,9 @@ Windows 10 22H2 x64 已确认仅加入“性能日志用户”组仍得到 `Star
 
 ## 6. 需要返回什么
 
-按开发者指定的权限模式返回 ZIP，并标注每个模式。Windows 10 22H2 的三模式基线已经建立，不再默认要求普通协作者重复管理员或“性能日志用户”对照：
+按开发者指定的权限模式返回 ZIP。ZIP 文件名会自动包含脚本阶段；Windows 10 22H2 的三模式基线已经建立，不再默认要求普通协作者重复管理员或“性能日志用户”对照：
 
-- `storpulse-diagnostics-<时间>-<随机标识>.zip`
+- `storpulse-diagnostics-<脚本阶段>-<时间>-<随机标识>.zip`
 - 同一台协作机器上其余已执行权限模式各自生成的 ZIP
 
 如果脚本显示失败，也要返回 ZIP。采集器会从初始化阶段开始记录脱敏失败阶段、异常类型和 HRESULT；失败包仍会包含 `collector-result.json`、`environment.json`、`console.log`，以及探针成功写出时的报告。异常消息、用户名、命令行和本机路径不会写入失败日志。

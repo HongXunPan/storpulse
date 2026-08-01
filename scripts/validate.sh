@@ -24,6 +24,42 @@ if missing_bom:
 print("PowerShell UTF-8 BOM 校验通过")
 PY
 
+python3 - "${ROOT_DIR}" <<'PY'
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1])
+entry_stages = {
+    "collect-standard.cmd": "standard-collection",
+    "collect-performance-log-user.cmd": "performance-log-user-collection",
+    "collect-service.cmd": "service-collection",
+    "collect-service-disconnect.cmd": "service-disconnect-validation",
+}
+for filename, stage in entry_stages.items():
+    text = (root / "scripts" / "windows-stage0" / filename).read_text(encoding="utf-8-sig")
+    if f"-StageName {stage}" not in text:
+        raise SystemExit(f"Windows 采集入口缺少稳定阶段名：{filename} -> {stage}")
+
+admin_text = (root / "scripts" / "windows-stage0" / "launch-admin.ps1").read_text(
+    encoding="utf-8-sig"
+)
+if '"-StageName"' not in admin_text or '"administrator-collection"' not in admin_text:
+    raise SystemExit("Windows 管理员采集入口缺少稳定阶段名")
+
+validator_text = (root / "scripts" / "validate_stage0_windows_package.ps1").read_text(
+    encoding="utf-8-sig"
+)
+if '-StageName "package-validation"' not in validator_text:
+    raise SystemExit("Windows 成品包验证入口缺少稳定阶段名")
+
+collector_text = (root / "scripts" / "windows-stage0" / "collect.ps1").read_text(
+    encoding="utf-8-sig"
+)
+if 'storpulse-diagnostics-{0}-{1}.zip' not in collector_text:
+    raise SystemExit("Windows 诊断 ZIP 文件名没有包含脚本阶段")
+print("Windows 诊断 ZIP 阶段命名校验通过")
+PY
+
 if [[ -f "${ROOT_DIR}/Cargo.toml" ]]; then
   RUST_BIN="${STORPULSE_RUST_BIN:-}"
   if [[ -z "${RUST_BIN}" ]]; then

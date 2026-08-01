@@ -86,6 +86,7 @@ $ExpectedMode = if ($ActualAdministrator) { "Administrator" } else { "Standard" 
     -ExecutionPolicy Bypass `
     -File $CollectorPath `
     -ExpectedMode $ExpectedMode `
+    -StageName "package-validation" `
     -DurationSeconds 5 `
     -NoPause
 $CollectorExitCode = $LASTEXITCODE
@@ -170,7 +171,7 @@ if ($Summary.workload.shortLivedProcessesStarted -ne $ExpectedShortLivedProcesse
     throw "成品包没有完整证明 40 个短命进程的启动、结束和磁盘读取归因"
 }
 
-$ArchivePath = Join-Path $DiagnosticsRoot ("storpulse-diagnostics-{0}.zip" -f $CollectorResult.runId)
+$ArchivePath = Join-Path $DiagnosticsRoot ("storpulse-diagnostics-package-validation-{0}.zip" -f $CollectorResult.runId)
 if (-not (Test-Path -LiteralPath $ArchivePath -PathType Leaf)) {
     throw "成品包采集入口没有生成诊断 ZIP：$ArchivePath"
 }

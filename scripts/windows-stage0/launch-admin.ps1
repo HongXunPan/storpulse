@@ -10,7 +10,9 @@ $Arguments = @(
     "-File",
     ('"{0}"' -f $CollectorPath),
     "-ExpectedMode",
-    "Administrator"
+    "Administrator",
+    "-StageName",
+    "administrator-collection"
 )
 $Process = Start-Process -FilePath "powershell.exe" `
     -Verb RunAs `
