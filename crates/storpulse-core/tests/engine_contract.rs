@@ -152,7 +152,7 @@ fn swift_probe_fixture_decodes_without_platform_only_metadata() {
       "metricScope":["device","storage_process"],
       "freshness":"fresh",
       "completeness":"restricted",
-      "processes":[{"identity":{"pid":42,"startTimeTicks":9},"parentPID":1,
+      "processes":[{"identity":{"pid":42,"startTimeTicks":9},"parentPid":1,
         "executableName":"示例","readBytes":100,"writeBytes":200,
         "userTimeNanoseconds":1,"systemTimeNanoseconds":2,
         "residentBytes":3,"physicalFootprintBytes":4}],
@@ -167,6 +167,7 @@ fn swift_probe_fixture_decodes_without_platform_only_metadata() {
         decoded.processes[0].normalized_application_id(),
         "executable:示例"
     );
+    assert_eq!(decoded.processes[0].parent_pid, Some(1));
     assert_eq!(decoded.devices[0].device_id, "macos:ioreg:7");
 }
 

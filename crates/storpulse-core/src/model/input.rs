@@ -29,14 +29,14 @@ pub enum Completeness {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ProcessIdentity {
     pub pid: i32,
     pub start_time_ticks: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ProcessIoSample {
     pub identity: ProcessIdentity,
     #[serde(default)]
@@ -77,7 +77,7 @@ impl ProcessIoSample {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct DeviceIoSample {
     pub device_id: String,
     pub read_bytes: u64,
@@ -89,7 +89,7 @@ pub struct DeviceIoSample {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CollectionSummary {
     pub discovered_processes: usize,
     pub readable_processes: usize,
@@ -100,7 +100,7 @@ pub struct CollectionSummary {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RawSnapshot {
     pub schema_version: u32,
     pub captured_at: String,
