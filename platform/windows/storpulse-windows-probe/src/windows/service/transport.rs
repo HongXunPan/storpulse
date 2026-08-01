@@ -4,16 +4,16 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use windows_sys::Win32::Foundation::{
-    CloseHandle, ERROR_NO_DATA, ERROR_PIPE_CONNECTED, ERROR_PIPE_LISTENING, GetLastError, HANDLE,
-    INVALID_HANDLE_VALUE, LocalFree,
+    CloseHandle, ERROR_NO_DATA, ERROR_PIPE_CONNECTED, ERROR_PIPE_LISTENING, GENERIC_READ,
+    GetLastError, HANDLE, INVALID_HANDLE_VALUE, LocalFree,
 };
 use windows_sys::Win32::Security::Authorization::{
     ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1,
 };
 use windows_sys::Win32::Security::{PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES};
 use windows_sys::Win32::Storage::FileSystem::{
-    CreateFileW, FILE_FLAG_FIRST_PIPE_INSTANCE, FILE_READ_DATA, FILE_WRITE_DATA, OPEN_EXISTING,
-    PIPE_ACCESS_DUPLEX, ReadFile, SYNCHRONIZE, WriteFile,
+    CreateFileW, FILE_FLAG_FIRST_PIPE_INSTANCE, FILE_WRITE_DATA, OPEN_EXISTING, PIPE_ACCESS_DUPLEX,
+    ReadFile, WriteFile,
 };
 use windows_sys::Win32::System::Pipes::{
     ConnectNamedPipe, CreateNamedPipeW, DisconnectNamedPipe, PIPE_NOWAIT, PIPE_READMODE_MESSAGE,
@@ -25,9 +25,10 @@ use super::ServiceFailure;
 
 pub(super) const PIPE_NAME: &str = r"\\.\pipe\StorPulse.Stage0.Collector.v1";
 const PIPE_BUFFER_BYTES: u32 = 65_536;
-const CLIENT_PIPE_ACCESS: u32 = FILE_READ_DATA | FILE_WRITE_DATA | SYNCHRONIZE;
+const CLIENT_PIPE_ACCESS: u32 = GENERIC_READ | FILE_WRITE_DATA;
 // LocalSystem 创建的管道默认处于系统完整性；显式使用中等完整性允许标准用户双向通信。
-const PIPE_SDDL: &str = "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;0x00100003;;;IU)S:(ML;;NW;;;ME)";
+// 交互用户只获得 FILE_GENERIC_READ 与 FILE_WRITE_DATA，不包含创建管道实例权限。
+const PIPE_SDDL: &str = "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;0x0012008b;;;IU)S:(ML;;NW;;;ME)";
 
 pub(super) struct Pipe {
     handle: HANDLE,
@@ -268,6 +269,15 @@ fn wide(value: &str) -> Vec<u16> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn client_pipe_access_excludes_create_instance_right() {
+        const FILE_CREATE_PIPE_INSTANCE: u32 = 0x0000_0004;
+
+        assert_eq!(CLIENT_PIPE_ACCESS, GENERIC_READ | FILE_WRITE_DATA);
+        assert_eq!(CLIENT_PIPE_ACCESS & FILE_CREATE_PIPE_INSTANCE, 0);
+        assert!(PIPE_SDDL.contains("(A;;0x0012008b;;;IU)"));
+    }
 
     #[test]
     fn pipe_security_descriptor_keeps_medium_integrity_boundary() {
