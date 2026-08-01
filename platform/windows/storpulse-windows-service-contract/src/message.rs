@@ -122,6 +122,7 @@ impl ServiceMessage {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FailurePhase {
+    ServiceLifecycle,
     Connection,
     Authentication,
     Protocol,
@@ -134,6 +135,7 @@ pub enum FailurePhase {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SafeErrorCode {
+    ServiceStatusFailed,
     ConnectionFailed,
     UnsupportedProtocol,
     UnsupportedSnapshotSchema,

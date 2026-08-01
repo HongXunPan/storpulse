@@ -2,6 +2,7 @@
 members = [
   "crates/storpulse-core",
   "crates/storpulse-ffi",
+  "platform/windows/storpulse-windows-service",
   "platform/windows/storpulse-windows-service-contract",
   "platform/windows/storpulse-windows-service-runtime",
   "platform/windows/storpulse-windows-probe",

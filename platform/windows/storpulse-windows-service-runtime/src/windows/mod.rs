@@ -12,6 +12,6 @@ pub use etw::{EtwCallbackContext, event_record_callback};
 pub use pipe::{PRODUCT_PIPE_NAME, ProductPipe};
 pub use pipe_support::{PipeError, PipeErrorKind};
 pub use service_error::ServiceRunError;
-pub use service_loop::{ServiceOutcome, run_single_session};
+pub use service_loop::{ServiceOutcome, run_single_session, run_single_session_with_ready};
 pub use trace::{TraceCompletion, TraceError, TraceSession};
 pub use trace_config::PRODUCT_ETW_SESSION_NAME;

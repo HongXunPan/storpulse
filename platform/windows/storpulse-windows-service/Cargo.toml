@@ -1,0 +1,15 @@
+[package]
+name = "storpulse-windows-service"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[target.'cfg(windows)'.dependencies]
+storpulse-windows-service-runtime = { path = "../storpulse-windows-service-runtime" }
+windows-sys = { workspace = true, features = [
+  "Win32_Foundation",
+  "Win32_System_Services",
+] }

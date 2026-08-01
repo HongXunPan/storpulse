@@ -148,6 +148,16 @@ fn stable_failure_message_can_end_any_state() {
         })
         .unwrap();
     assert_eq!(session.state(), CollectionState::Failed);
+
+    let lifecycle_failure = serde_json::to_string(&ServiceMessage::Failed {
+        protocol_version: PROTOCOL_VERSION,
+        phase: FailurePhase::ServiceLifecycle,
+        safe_error_code: SafeErrorCode::ServiceStatusFailed,
+        native_code: Some(6),
+    })
+    .unwrap();
+    assert!(lifecycle_failure.contains("\"phase\":\"service_lifecycle\""));
+    assert!(lifecycle_failure.contains("\"safeErrorCode\":\"service_status_failed\""));
 }
 
 #[test]

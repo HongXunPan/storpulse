@@ -15,6 +15,14 @@ pub struct ServiceRunError {
 }
 
 impl ServiceRunError {
+    pub(super) fn service_status(native_code: u32) -> Self {
+        Self {
+            phase: FailurePhase::ServiceLifecycle,
+            safe_error_code: SafeErrorCode::ServiceStatusFailed,
+            native_code: Some(native_code),
+        }
+    }
+
     pub(super) fn authentication(native_code: Option<u32>) -> Self {
         Self {
             phase: FailurePhase::Authentication,
@@ -38,6 +46,12 @@ impl ServiceRunError {
             safe_error_code: self.safe_error_code,
             native_code: self.native_code,
         }
+    }
+
+    pub fn is_stop_requested(&self) -> bool {
+        self.phase == FailurePhase::Shutdown
+            && self.safe_error_code == SafeErrorCode::ShutdownFailed
+            && self.native_code == Some(995)
     }
 }
 
@@ -143,5 +157,17 @@ impl From<RuntimeError> for ServiceRunError {
             safe_error_code,
             native_code: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_explicit_operation_abort_is_a_controlled_stop() {
+        assert!(ServiceRunError::shutdown(Some(995)).is_stop_requested());
+        assert!(!ServiceRunError::shutdown(Some(5)).is_stop_requested());
+        assert!(!ServiceRunError::authentication(Some(995)).is_stop_requested());
     }
 }

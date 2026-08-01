@@ -1,0 +1,89 @@
+name: Windows 开发者预览服务
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/**"
+      - "platform/windows/storpulse-windows-service/**"
+      - "platform/windows/storpulse-windows-service-contract/**"
+      - "platform/windows/storpulse-windows-service-runtime/**"
+      - ".github/workflows/windows-preview.yml"
+  push:
+    branches: [main]
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/**"
+      - "platform/windows/storpulse-windows-service/**"
+      - "platform/windows/storpulse-windows-service-contract/**"
+      - "platform/windows/storpulse-windows-service-runtime/**"
+      - ".github/workflows/windows-preview.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-service:
+    name: 构建 Windows x64 产品服务
+    runs-on: windows-2025
+    timeout-minutes: 30
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_PROFILE_RELEASE_DEBUG: "1"
+      RUSTFLAGS: "-C target-feature=+crt-static"
+
+    steps:
+      - name: 检出源码
+        uses: actions/checkout@v7
+
+      - name: 安装固定 Rust 工具链
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal --component rustfmt,clippy --target x86_64-pc-windows-msvc
+          rustup default 1.97.1
+          rustc --version --verbose
+
+      - name: 校验 Windows 工作区
+        shell: pwsh
+        run: |
+          cargo fmt --all --check
+          cargo check --locked --workspace --all-targets --target x86_64-pc-windows-msvc
+          cargo test --locked --workspace --target x86_64-pc-windows-msvc
+          cargo clippy --locked `
+            --package storpulse-windows-service-contract `
+            --package storpulse-windows-service-runtime `
+            --package storpulse-windows-service `
+            --all-targets `
+            --target x86_64-pc-windows-msvc `
+            -- -D warnings
+
+      - name: 构建产品服务
+        shell: pwsh
+        run: cargo build --locked --release --package storpulse-windows-service --target x86_64-pc-windows-msvc
+
+      - name: 整理开发者预览产物
+        shell: pwsh
+        run: |
+          $CargoMetadata = cargo metadata --locked --no-deps --format-version 1 | ConvertFrom-Json
+          $ReleaseDirectory = Join-Path ([string]$CargoMetadata.target_directory) "x86_64-pc-windows-msvc/release"
+          $OutputDirectory = ".codex-tmp/windows-preview-service"
+          New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
+          $Binary = Join-Path $ReleaseDirectory "storpulse-windows-service.exe"
+          if (-not (Test-Path -LiteralPath $Binary -PathType Leaf)) {
+            throw "未找到 Windows 产品服务 EXE"
+          }
+          Copy-Item -LiteralPath $Binary -Destination $OutputDirectory
+          $Hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $Binary).Hash
+          "$Hash *storpulse-windows-service.exe" |
+            Set-Content -LiteralPath (Join-Path $OutputDirectory "SHA256SUMS.txt") -Encoding ascii
+
+      - name: 上传 Windows 产品服务
+        uses: actions/upload-artifact@v7
+        with:
+          name: storpulse-windows-service-x64-${{ github.sha }}
+          path: .codex-tmp/windows-preview-service
+          if-no-files-found: error
+          retention-days: 14

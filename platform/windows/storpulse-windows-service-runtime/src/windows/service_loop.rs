@@ -28,6 +28,14 @@ pub fn run_single_session(
     expected_nonce: &str,
     stop_requested: &AtomicBool,
 ) -> Result<ServiceOutcome, ServiceRunError> {
+    run_single_session_with_ready(expected_nonce, stop_requested, || Ok(()))
+}
+
+pub fn run_single_session_with_ready(
+    expected_nonce: &str,
+    stop_requested: &AtomicBool,
+    on_listening: impl FnOnce() -> Result<(), u32>,
+) -> Result<ServiceOutcome, ServiceRunError> {
     if !valid_nonce(expected_nonce) {
         return Err(ServiceRunError::authentication(None));
     }
@@ -35,6 +43,7 @@ pub fn run_single_session(
         return Err(ServiceRunError::authentication(Some(5)));
     }
     let pipe = ProductPipe::create_server()?;
+    on_listening().map_err(ServiceRunError::service_status)?;
     pipe.connect_server(Instant::now() + CONNECT_TIMEOUT, stop_requested)?;
     let result = run_connected_session(&pipe, expected_nonce, stop_requested);
     if let Err(error) = result {

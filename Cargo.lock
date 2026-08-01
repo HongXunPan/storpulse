@@ -102,6 +102,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "storpulse-windows-service"
+version = "0.1.0"
+dependencies = [
+ "storpulse-windows-service-runtime",
+ "windows-sys",
+]
+
+[[package]]
 name = "storpulse-windows-service-contract"
 version = "0.1.0"
 dependencies = [
