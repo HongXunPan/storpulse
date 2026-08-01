@@ -165,7 +165,7 @@ fn run_continuous(
     Ok(())
 }
 
-pub(super) fn complete_protocol(
+fn complete_protocol(
     pipe: &ProductPipe,
     session: &mut CollectionSession,
     report: &mut GateReport,
@@ -227,7 +227,7 @@ fn receive_until_stopped(
     }
 }
 
-pub(super) fn receive(
+fn receive(
     pipe: &ProductPipe,
     session: &mut CollectionSession,
     deadline: Instant,
