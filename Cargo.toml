@@ -3,6 +3,7 @@ members = [
   "crates/storpulse-core",
   "crates/storpulse-ffi",
   "platform/windows/storpulse-windows-client",
+  "platform/windows/storpulse-windows-diagnostics",
   "platform/windows/storpulse-windows-ipc",
   "platform/windows/storpulse-windows-service",
   "platform/windows/storpulse-windows-service-contract",

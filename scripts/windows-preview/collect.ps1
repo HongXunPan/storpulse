@@ -4,6 +4,7 @@
         "windows-stage1-continuous-validation",
         "windows-stage1-disconnect-cleanup",
         "windows-stage1-connect-timeout-cleanup",
+        "windows-stage1-service-fallback-validation",
         "windows-stage1-client-termination-cleanup",
         "windows-stage1-sleep-resume-validation",
         "package-validation"
@@ -22,6 +23,7 @@ $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "collect-environment.ps1")
 . (Join-Path $PSScriptRoot "invoke-client.ps1")
 . (Join-Path $PSScriptRoot "privacy.ps1")
+. (Join-Path $PSScriptRoot "service-diagnostics.ps1")
 . (Join-Path $PSScriptRoot "diagnostic-export.ps1")
 . (Join-Path $PSScriptRoot "lifecycle-gates.ps1")
 
@@ -38,6 +40,7 @@ $StandardErrorPath = Join-Path $RunDirectory ".client-stderr.txt"
 $GateMode = switch ($StageName) {
     "windows-stage1-disconnect-cleanup" { "disconnect_cleanup" }
     "windows-stage1-connect-timeout-cleanup" { "connect_timeout_cleanup" }
+    "windows-stage1-service-fallback-validation" { "connect_timeout_cleanup" }
     "windows-stage1-client-termination-cleanup" { "client_termination_cleanup" }
     "windows-stage1-sleep-resume-validation" { "sleep_resume_validation" }
     default { "continuous_validation" }
@@ -51,6 +54,8 @@ $FailureHResult = $null
 $ClientExitCode = $null
 $ClientFinished = $false
 $SleepResumePromptShown = $false
+$ServiceFallbackSnapshot = $null
+$ServiceFallbackConfirmed = $false
 $PackageCommit = "unknown"
 $ClientHashMatches = $false
 $InstalledServiceHashMatches = $false
@@ -124,6 +129,12 @@ try {
         throw "installed_service_contract_mismatch"
     }
 
+    if ($StageName -eq "windows-stage1-service-fallback-validation") {
+        $FailureStage = "capture_service_fallback_baseline"
+        $FailureSafeErrorCode = "service_fallback_validation_failed"
+        $ServiceFallbackSnapshot = Get-ServiceFallbackSnapshot
+    }
+
     $FailureStage = "run_client"
     $FailureSafeErrorCode = "client_execution_failed"
     $ClientRun = Invoke-StorPulseClient `
@@ -164,6 +175,15 @@ try {
         $Summary.serviceName -ne "StorPulseCollector" -or
         $Summary.mode -ne $GateMode) {
         throw "summary_contract_mismatch"
+    }
+    if ($StageName -eq "windows-stage1-service-fallback-validation") {
+        $FailureStage = "validate_service_fallback"
+        $FailureSafeErrorCode = "service_fallback_validation_failed"
+        $ServiceFallback = Confirm-ServiceFallbackValidation `
+            -BeforeSnapshot $ServiceFallbackSnapshot `
+            -RunDirectory $RunDirectory `
+            -Summary $Summary
+        $ServiceFallbackConfirmed = [bool]$ServiceFallback.confirmed
     }
     $CollectorStatus = "completed"
     $FailureStage = $null
@@ -247,7 +267,9 @@ $Capabilities = [ordered]@{
     clientFinished = $ClientFinished
     clientExitCode = $ClientExitCode
     sleepResumePromptShown = $SleepResumePromptShown
+    serviceFallbackConfirmed = $ServiceFallbackConfirmed
 }
+$DiagnosticFiles = @(Get-DiagnosticFileNames -RunDirectory $RunDirectory)
 $DiagnosticManifest = [ordered]@{
     schemaVersion = 1
     product = "StorPulse Windows 持续采集实机诊断"
@@ -255,7 +277,7 @@ $DiagnosticManifest = [ordered]@{
     stageName = $StageName
     collectorStatus = $CollectorStatus
     packageCommit = $PackageCommit
-    files = @("manifest.json", "capabilities.json", "summary.json", "errors.json", "privacy-check.json", "console.log")
+    files = $DiagnosticFiles
     privacy = "只含平台能力、稳定错误码和聚合证据；不含原始 ETL、路径、命令行、用户名、SID 或 nonce"
 }
 

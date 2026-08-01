@@ -1,4 +1,5 @@
 mod clock;
+mod diagnostics;
 mod etw;
 mod identity;
 mod service_error;

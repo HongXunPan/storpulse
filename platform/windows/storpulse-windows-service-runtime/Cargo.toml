@@ -12,6 +12,7 @@ storpulse-core.workspace = true
 storpulse-windows-service-contract = { path = "../storpulse-windows-service-contract" }
 
 [target.'cfg(windows)'.dependencies]
+storpulse-windows-diagnostics = { path = "../storpulse-windows-diagnostics" }
 storpulse-windows-ipc = { path = "../storpulse-windows-ipc" }
 windows-sys = { workspace = true, features = [
   "Win32_Foundation",

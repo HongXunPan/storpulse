@@ -4,7 +4,7 @@
 
 ## 一、项目定位
 
-1. macOS Intel 开发者预览已完成阶段 1–3 源码；Windows x64 开发者预览进入分阶段实现，Windows 10 按需服务候选门禁已通过，Windows 11 仍待独立实机验证。Apple Silicon、旧版 macOS、签名与正式分发保持未验证。
+1. macOS Intel 开发者预览已完成阶段 1–3 源码；Windows x64 开发者预览的 Windows 10 持续协议、异常清理与传统待机恢复门禁已通过，服务后备记录实机、WinUI 最小壳层和 Windows 11 仍待独立验证。Apple Silicon、旧版 macOS、签名与正式分发保持未验证。
 2. Rust 共享内核只承载跨平台稳定语义；macOS 使用 SwiftUI/AppKit，Windows 使用 C#/WinUI 3 与 Win32 通知区域。平台 API、权限与元数据留在各自适配器。
 3. 设备 I/O、存储层进程 I/O、广义进程 I/O、文件事件与物理介质写入必须保持不同口径。
 4. 不可读取、过期、重置或不支持必须显式表达，不得用零值或推测补齐。

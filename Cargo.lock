@@ -105,6 +105,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "storpulse-windows-diagnostics"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "storpulse-windows-service-contract",
+]
+
+[[package]]
 name = "storpulse-windows-ipc"
 version = "0.1.0"
 dependencies = [
@@ -146,6 +155,7 @@ version = "0.1.0"
 dependencies = [
  "serde_json",
  "storpulse-core",
+ "storpulse-windows-diagnostics",
  "storpulse-windows-ipc",
  "storpulse-windows-service-contract",
  "windows-sys",

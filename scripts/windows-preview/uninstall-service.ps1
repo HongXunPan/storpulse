@@ -4,6 +4,11 @@ $ErrorActionPreference = "Stop"
 $ServiceName = "StorPulseCollector"
 $EtwSessionName = "StorPulse.Collector.Etw.v1"
 $InstallDirectory = Join-Path ${env:ProgramFiles} "StorPulse\Collector"
+$CommonApplicationData = [Environment]::GetFolderPath(
+    [Environment+SpecialFolder]::CommonApplicationData
+)
+$ProductDataDirectory = $null
+$DiagnosticsDirectory = $null
 
 function Test-Administrator {
     $Identity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -16,6 +21,11 @@ try {
     if (-not (Test-Administrator)) {
         throw "服务卸载必须在 UAC 提升后的管理员进程中执行"
     }
+    if ([string]::IsNullOrWhiteSpace($CommonApplicationData)) {
+        throw "无法解析 Windows 公共应用数据目录"
+    }
+    $ProductDataDirectory = Join-Path $CommonApplicationData "StorPulse"
+    $DiagnosticsDirectory = Join-Path $ProductDataDirectory "Diagnostics"
 
     $Service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
     if ($null -ne $Service) {
@@ -43,7 +53,16 @@ try {
     if (Test-Path -LiteralPath $InstallDirectory) {
         Remove-Item -Recurse -Force -LiteralPath $InstallDirectory
     }
-    Write-Host "StorPulse 按需采集服务和受保护目录已清理。" -ForegroundColor Green
+    if (Test-Path -LiteralPath $DiagnosticsDirectory) {
+        Remove-Item -Recurse -Force -LiteralPath $DiagnosticsDirectory
+    }
+    if (Test-Path -LiteralPath $ProductDataDirectory -PathType Container) {
+        $RemainingProductData = @(Get-ChildItem -LiteralPath $ProductDataDirectory -Force)
+        if ($RemainingProductData.Count -eq 0) {
+            Remove-Item -Force -LiteralPath $ProductDataDirectory
+        }
+    }
+    Write-Host "StorPulse 按需采集服务、安装目录和诊断记录已清理。" -ForegroundColor Green
 }
 catch {
     $ExitCode = 1

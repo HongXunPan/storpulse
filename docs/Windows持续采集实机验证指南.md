@@ -2,7 +2,7 @@
 
 ## 1. 验证范围
 
-本指南用于在 Windows 10 22H2 x64 上验证 StorPulse 产品服务的持续协议、真实 ETW 聚合、普通用户启动、正常停止、客户端断开、连接超时、客户端强杀清理和休眠恢复。当前 Win10 Pro 22H2 x64 传统待机（S3）已取得标准用户实机通过结果；它是 Windows 阶段 1 实机门禁，不等于 Windows 11、Modern Standby、WinUI、签名安装、长期运行或正式发布已经通过。
+本指南用于在 Windows 10 22H2 x64 上验证 StorPulse 产品服务的持续协议、真实 ETW 聚合、普通用户启动、正常停止、客户端断开、连接超时、未交付终止失败后备记录、客户端强杀清理和传统待机恢复。当前 Win10 Pro 22H2 x64 传统待机（S3）已取得标准用户实机通过结果；服务后备记录仍需按本文独立验证。它是 Windows 阶段 1 实机门禁，不等于 Windows 11、Modern Standby、WinUI、签名安装、长期运行或正式发布已经通过。
 
 测试包由 GitHub Actions 构建；本机不需要 Rust、Visual Studio、.NET 或“性能日志用户”组。安装和卸载会请求 UAC，所有采集入口必须保持普通用户权限。
 
@@ -28,13 +28,21 @@
    diagnostics\storpulse-diagnostics-windows-stage1-connect-timeout-cleanup-*.zip
    ```
 
-6. 双击 `验证客户端强杀清理.cmd`。测试客户端会在 ETW 启动后立即硬终止，脚本等待服务清理，再自动执行一次 5 秒恢复采集，生成：
+6. 双击 `验证服务后备记录.cmd`。它复用连接超时触发一次无法通过管道交付的服务终止失败，严格检查 `%ProgramData%\StorPulse\Diagnostics` 中恰好新增一条安全记录，并生成：
+
+   ```text
+   diagnostics\storpulse-diagnostics-windows-stage1-service-fallback-validation-*.zip
+   ```
+
+   入口保持标准用户权限，只读取固定产品目录，不删除或修改后备记录。成功 ZIP 会额外包含一条经过字段白名单和隐私扫描的 `events.ndjson`。
+
+7. 双击 `验证客户端强杀清理.cmd`。测试客户端会在 ETW 启动后立即硬终止，脚本等待服务清理，再自动执行一次 5 秒恢复采集，生成：
 
    ```text
    diagnostics\storpulse-diagnostics-windows-stage1-client-termination-cleanup-*.zip
    ```
 
-7. 双击 `验证休眠恢复.cmd`。该入口使用 30 秒受控负载观察预算；等窗口显示绿色的“休眠恢复门禁已准备完成”后，保持窗口打开，手动选择 Windows 的“睡眠”；等待至少 10 秒再唤醒电脑。恢复后脚本会等待磁盘唤醒并再次执行受控负载，然后生成：
+8. 双击 `验证休眠恢复.cmd`。该兼容文件名验证的是传统待机（S3）恢复；入口使用 30 秒受控负载观察预算。等窗口显示绿色的“休眠恢复门禁已准备完成”后，保持窗口打开，手动选择 Windows 的“睡眠”；等待至少 10 秒再唤醒电脑。恢复后脚本会等待磁盘唤醒并再次执行受控负载，然后生成：
 
    ```text
    diagnostics\storpulse-diagnostics-windows-stage1-sleep-resume-validation-*.zip
@@ -42,8 +50,8 @@
 
    不要用关机、重启、关闭显示器或锁屏替代睡眠。远程控制、下载或媒体应用可能持有系统电源请求并阻止真实睡眠，测试前应正常退出，不要使用 `powercfg /requestsoverride` 绕过。若系统没有“睡眠”选项，保留失败 ZIP 和窗口输出，不要改用休眠命令或第三方工具。
 
-8. 把五个 ZIP 放到约定的反馈目录或在 `反馈问题.url` 打开的 GitHub Issues 页面中自行上传。浏览器不会自动读取或上传文件。
-9. 双击 `卸载 StorPulse 按需服务.cmd`，允许 UAC；看到绿色清理成功和 `exit_code=0` 后再删除解压目录。
+9. 把六个 ZIP 放到约定的反馈目录或在 `反馈问题.url` 打开的 GitHub Issues 页面中自行上传。浏览器不会自动读取或上传文件。若持续采集、三项异常清理和传统待机此前已使用同一实现提交通过，本轮只需返回服务后备记录 ZIP。
+10. 双击 `卸载 StorPulse 按需服务.cmd`，允许 UAC；看到绿色清理成功和 `exit_code=0` 后再删除解压目录。卸载会清理固定安装目录和 `%ProgramData%\StorPulse\Diagnostics`，不会删除其他产品数据目录。
 
 若任一步显示 `exit_code=1`，不要手工启动 EXE、覆盖安装、修改服务权限或反复运行。保留窗口输出和已经生成的阶段化 ZIP，直接反馈。
 
@@ -68,6 +76,14 @@
 - `serviceWin32ExitCode=1066`、`serviceSpecificExitCode=1460`；
 - 没有启动负载或生成快照。
 
+服务后备记录 ZIP 至少应满足：
+
+- `status=completed`、`outcome=windows_service_fallback_validation_completed`；
+- `serviceFallback.confirmed=true`、`phase=connection`、`safeErrorCode=timeout`、`nativeCode=1460`；
+- 新记录不超过 64 KiB，固定目录最多保留 16 条，没有残留 `.writing` 临时文件；
+- `events.ndjson` 只有一条归一化安全事件，归档前后隐私检查均通过；
+- 入口仍为标准用户，且服务最终以连接超时错误收口。
+
 客户端强杀 ZIP 至少应满足：
 
 - `status=completed`、`clientTerminationCleanupConfirmed=true`、`serviceStopped=true`；
@@ -90,6 +106,6 @@
 
 ## 4. 隐私与反馈边界
 
-诊断 ZIP 只包含 `manifest.json`、`capabilities.json`、`summary.json`、`errors.json`、`privacy-check.json` 和 `console.log`。导出前后都会扫描用户名、账户 SID、用户目录、命令行、路径字段、nonce 和令牌；扫描失败时不会保留可提交 ZIP。
+诊断 ZIP 只包含 `manifest.json`、`capabilities.json`、`summary.json`、`errors.json`、`privacy-check.json`、`console.log`，以及服务后备记录门禁中可选的一条 `events.ndjson`。导出前后都会扫描用户名、账户 SID、用户目录、命令行、路径字段、nonce 和令牌；扫描失败时不会保留可提交 ZIP。
 
 ZIP 不包含 EXE、PDB、历史数据库、原始 ETL、崩溃转储、文件内容或自动上传配置。反馈入口只打开公开 GitHub Issues，是否上传以及上传哪个 ZIP 由用户决定。

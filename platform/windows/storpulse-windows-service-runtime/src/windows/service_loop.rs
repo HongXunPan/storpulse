@@ -10,8 +10,10 @@ use windows_sys::Win32::Foundation::ERROR_SUCCESS;
 use crate::SnapshotPublisher;
 
 use super::clock::SessionClock;
+use super::diagnostics::ServiceDiagnostics;
 use super::identity::{current_process_is_local_system, inspect_pipe_client, nonce_matches};
 use super::{ProductPipe, ServiceRunError, TraceCompletion, TraceSession};
+use storpulse_windows_diagnostics::{DiagnosticEventKind, DiagnosticState};
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(10);
@@ -39,15 +41,47 @@ pub fn run_single_session_with_ready(
     if !valid_nonce(expected_nonce) {
         return Err(ServiceRunError::authentication(None));
     }
-    if !current_process_is_local_system()? {
-        return Err(ServiceRunError::authentication(Some(5)));
+    let mut diagnostics = ServiceDiagnostics::start();
+    match current_process_is_local_system() {
+        Ok(true) => {}
+        Ok(false) => {
+            let error = ServiceRunError::authentication(Some(5));
+            diagnostics.record_failure(error);
+            diagnostics.persist_latest_failure();
+            return Err(error);
+        }
+        Err(error) => {
+            let error = ServiceRunError::from(error);
+            diagnostics.record_failure(error);
+            diagnostics.persist_latest_failure();
+            return Err(error);
+        }
     }
-    let pipe = ProductPipe::create_server()?;
-    on_listening().map_err(ServiceRunError::service_status)?;
-    pipe.connect_server(Instant::now() + CONNECT_TIMEOUT, stop_requested)?;
-    let result = run_connected_session(&pipe, expected_nonce, stop_requested);
-    if let Err(error) = result {
-        send_failure(&pipe, error);
+    let pipe = match ProductPipe::create_server() {
+        Ok(pipe) => pipe,
+        Err(error) => {
+            let error = ServiceRunError::from(error);
+            diagnostics.record_failure(error);
+            diagnostics.persist_latest_failure();
+            return Err(error);
+        }
+    };
+    let result = on_listening()
+        .map_err(ServiceRunError::service_status)
+        .and_then(|()| {
+            pipe.connect_server(Instant::now() + CONNECT_TIMEOUT, stop_requested)
+                .map_err(ServiceRunError::from)
+        })
+        .and_then(|()| {
+            run_connected_session(&pipe, expected_nonce, stop_requested, &mut diagnostics)
+        });
+    if let Err(error) = result
+        && !error.is_stop_requested()
+    {
+        diagnostics.record_failure(error);
+        if !send_failure(&pipe, error) {
+            diagnostics.persist_latest_failure();
+        }
     }
     result
 }
@@ -56,6 +90,7 @@ fn run_connected_session(
     pipe: &ProductPipe,
     expected_nonce: &str,
     stop_requested: &AtomicBool,
+    diagnostics: &mut ServiceDiagnostics,
 ) -> Result<ServiceOutcome, ServiceRunError> {
     let mut session = ServiceCommandSession::default();
     let connect = read_client_message(pipe, stop_requested)?;
@@ -68,6 +103,7 @@ fn run_connected_session(
         session.fail_session();
         return Err(ServiceRunError::authentication(Some(5)));
     }
+    diagnostics.associate_run_id(&request.run_id);
 
     session.mark_ready()?;
     write_service_message(
@@ -80,6 +116,10 @@ fn run_connected_session(
         },
         stop_requested,
     )?;
+    diagnostics.record(
+        DiagnosticEventKind::ClientAuthenticated,
+        DiagnosticState::Ready,
+    );
 
     let start = read_client_message(pipe, stop_requested)?;
     session.accept_start(&start)?;
@@ -92,9 +132,13 @@ fn run_connected_session(
         },
         stop_requested,
     )?;
+    diagnostics.record(
+        DiagnosticEventKind::CollectionStarted,
+        DiagnosticState::Collecting,
+    );
 
     let (mut publisher, trace, mut clock, last_sequence, pending_duration) =
-        collect_until_stop(pipe, trace, &mut session, stop_requested)?;
+        collect_until_stop(pipe, trace, &mut session, stop_requested, diagnostics)?;
     let stop_started = Instant::now();
     let completion = trace.stop(&mut publisher);
     if completion.stop_status != ERROR_SUCCESS || completion.process_status != ERROR_SUCCESS {
@@ -127,6 +171,10 @@ fn run_connected_session(
 
     let acknowledgement = read_client_message(pipe, stop_requested)?;
     session.accept_acknowledgement(&acknowledgement)?;
+    diagnostics.record(
+        DiagnosticEventKind::CollectionStopped,
+        DiagnosticState::Stopped,
+    );
     Ok(ServiceOutcome {
         final_sequence,
         trace: completion,
@@ -138,6 +186,7 @@ fn collect_until_stop(
     trace: TraceSession,
     session: &mut ServiceCommandSession,
     stop_requested: &AtomicBool,
+    diagnostics: &mut ServiceDiagnostics,
 ) -> Result<
     (
         SnapshotPublisher,
@@ -164,6 +213,10 @@ fn collect_until_stop(
         if pipe.data_available()? {
             let stop = read_client_message(pipe, stop_requested)?;
             session.accept_stop(&stop, last_sequence)?;
+            diagnostics.record(
+                DiagnosticEventKind::CollectionStopping,
+                DiagnosticState::Draining,
+            );
             return Ok((publisher, trace, clock, last_sequence, collection_duration));
         }
         if Instant::now() >= next_publish {
@@ -223,12 +276,13 @@ fn write_service_message(
     .map_err(Into::into)
 }
 
-fn send_failure(pipe: &ProductPipe, error: ServiceRunError) {
-    let _ = pipe.write_message_until(
+fn send_failure(pipe: &ProductPipe, error: ServiceRunError) -> bool {
+    pipe.write_message_until(
         &error.message(),
         Instant::now() + FAILURE_WRITE_TIMEOUT,
         None,
-    );
+    )
+    .is_ok()
 }
 
 fn valid_nonce(value: &str) -> bool {

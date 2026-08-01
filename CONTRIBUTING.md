@@ -5,7 +5,7 @@
 - macOS 阶段 0：macOS 14 或更高版本、Xcode 26.5 当前 SDK。
 - Rust：由 `rust-toolchain.toml` 固定；当前环境可通过 `rustup run` 调用。
 - Windows 自动构建：GitHub Actions `windows-2025` runner，只证明 Windows x64 编译、测试、脚本结构和打包。
-- Windows 实机：首轮候选为 Windows 10 22H2 x64；Windows 11 正式门禁仍需独立实机验证。
+- Windows 实机：Windows 10 22H2 x64 已完成持续采集、异常清理和传统待机（S3）恢复门禁；服务后备记录、WinUI、长期运行与 Windows 11 仍需分别验证。
 
 ## 最小验证
 
@@ -25,7 +25,7 @@ Windows runner 校验：
 ./scripts/validate_stage0_windows.ps1
 ```
 
-阶段 0 成品包生成后，Actions 会用 Windows PowerShell 5.1 执行 `scripts/validate_stage0_windows_package.ps1`。阶段 1 持续采集包由 `scripts/validate_windows_preview_package.ps1` 检查服务权限、二进制哈希、UTF-8 BOM、标准用户采集入口、阶段化 ZIP 与显式反馈渠道；CI 不以管理员 runner 冒充标准用户实机协议闭环。
+阶段 0 成品包生成后，Actions 会用 Windows PowerShell 5.1 执行 `scripts/validate_stage0_windows_package.ps1`。阶段 1 持续采集包由 `scripts/validate_windows_preview_package.ps1` 检查服务权限、二进制哈希、UTF-8 BOM、标准用户采集入口、服务后备记录合成回归、阶段化 ZIP 与显式反馈渠道；CI 不以管理员 runner 冒充标准用户实机协议闭环。
 
 Windows 协作者只使用 Actions 产物，不需要安装开发环境；阶段 0 操作见[Windows 阶段 0 协作调试指南](docs/Windows阶段0协作调试指南.md)，阶段 1 操作见[Windows 持续采集实机验证指南](docs/Windows持续采集实机验证指南.md)。
 
@@ -58,7 +58,7 @@ bash scripts/debug_macos.sh
 - 单元测试：证明数据模型、编码和错误状态稳定。
 - 集成测试：证明 macOS 公共 API 可在当前宿主环境读取。
 - 阶段 0 证据：证明当前 macOS 26.5 Intel 环境的方向、累计量、受限范围和自身开销；不等于 Apple Silicon、旧系统或签名发行已通过。
-- Windows 自动化：证明固定工具链能产出 x64 服务、标准用户客户端与结构可校验的实机测试包；不证明 Windows 10/11 ETW 权限或持续采集门禁。
+- Windows 自动化：证明固定工具链能校验安全诊断事件与后备记录、产出 x64 服务、标准用户客户端和结构可校验的实机测试包；不替代 Windows 10/11 服务、ETW、日志写入或界面实机门禁。
 - Windows 协作诊断：Windows 10 结果只作为候选兼容性证据，不能代替真实 Windows 11 标准用户门禁。
 
 ## 禁止事项

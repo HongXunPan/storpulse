@@ -57,6 +57,23 @@ function New-EmptyWorkloadEvidence {
     }
 }
 
+function Get-DiagnosticFileNames {
+    param([Parameter(Mandatory = $true)] [string]$RunDirectory)
+
+    $Files = @(
+        "manifest.json",
+        "capabilities.json",
+        "summary.json",
+        "errors.json",
+        "privacy-check.json",
+        "console.log"
+    )
+    if (Test-Path -LiteralPath (Join-Path $RunDirectory "events.ndjson") -PathType Leaf) {
+        $Files += "events.ndjson"
+    }
+    return @($Files)
+}
+
 function Export-StorPulseDiagnostic {
     param(
         [Parameter(Mandatory = $true)] [string]$RunDirectory,
@@ -91,7 +108,8 @@ function Export-StorPulseDiagnostic {
         "summary.json",
         "errors.json",
         "privacy-check.json",
-        "console.log"
+        "console.log",
+        "events.ndjson"
     )
     $Privacy = Test-DiagnosticDirectoryPrivacy `
         -Directory $RunDirectory `

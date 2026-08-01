@@ -41,6 +41,7 @@ $ScriptNames = @(
     "launch-service-uninstall.ps1",
     "lifecycle-gates.ps1",
     "privacy.ps1",
+    "service-diagnostics.ps1",
     "uninstall-service.ps1"
 )
 foreach ($ScriptName in $ScriptNames) {
@@ -56,6 +57,8 @@ Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-preview/collect-disconn
     -Destination (Join-Path $PackageRoot "收集断连清理.cmd")
 Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-preview/collect-connect-timeout.cmd") `
     -Destination (Join-Path $PackageRoot "验证连接超时清理.cmd")
+Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-preview/validate-service-fallback.cmd") `
+    -Destination (Join-Path $PackageRoot "验证服务后备记录.cmd")
 Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-preview/collect-client-termination.cmd") `
     -Destination (Join-Path $PackageRoot "验证客户端强杀清理.cmd")
 Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-preview/validate-sleep-resume.cmd") `
@@ -86,6 +89,9 @@ $Manifest = [ordered]@{
     serviceStartType = "demand"
     protocolVersion = 1
     snapshotSchemaVersion = 2
+    diagnosticEventSchemaVersion = 1
+    serviceFallbackMaxRecords = 16
+    serviceFallbackMaxBytes = 65536
     createdAtUtc = [DateTime]::UtcNow.ToString("o")
 }
 [System.IO.File]::WriteAllText(

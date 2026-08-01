@@ -8,6 +8,7 @@ on:
       - "Cargo.lock"
       - "crates/**"
       - "platform/windows/storpulse-windows-client/**"
+      - "platform/windows/storpulse-windows-diagnostics/**"
       - "platform/windows/storpulse-windows-ipc/**"
       - "platform/windows/storpulse-windows-service/**"
       - "platform/windows/storpulse-windows-service-contract/**"
@@ -25,6 +26,7 @@ on:
       - "Cargo.lock"
       - "crates/**"
       - "platform/windows/storpulse-windows-client/**"
+      - "platform/windows/storpulse-windows-diagnostics/**"
       - "platform/windows/storpulse-windows-ipc/**"
       - "platform/windows/storpulse-windows-service/**"
       - "platform/windows/storpulse-windows-service-contract/**"
@@ -68,6 +70,7 @@ jobs:
           cargo test --locked --workspace --target x86_64-pc-windows-msvc
           cargo clippy --locked `
             --package storpulse-windows-client `
+            --package storpulse-windows-diagnostics `
             --package storpulse-windows-ipc `
             --package storpulse-windows-service-contract `
             --package storpulse-windows-service-runtime `
