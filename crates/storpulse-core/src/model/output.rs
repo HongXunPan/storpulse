@@ -45,7 +45,7 @@ pub struct RealtimeApplication {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RealtimeDevice {
-    pub registry_entry_id: u64,
+    pub device_id: String,
     pub current: Option<IoRate>,
     pub run_read_bytes: u64,
     pub run_write_bytes: u64,

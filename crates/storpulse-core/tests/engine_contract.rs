@@ -1,8 +1,8 @@
 use storpulse_core::{
-    ActivityPolicy, Engine, EngineCommand, EngineCommandResult,
+    ActivityPolicy, Engine, EngineCommand, EngineCommandResult, EngineError,
     model::{
         CollectionSummary, Completeness, DeviceIoSample, Freshness, MetricScope, ProcessIdentity,
-        ProcessIoSample, RawSnapshot,
+        ProcessIoSample, RawSnapshot, SNAPSHOT_SCHEMA_VERSION,
     },
 };
 
@@ -26,6 +26,17 @@ fn rates_aggregation_and_running_totals_are_recomputable() {
     assert_eq!(second.applications.len(), 1);
     assert_eq!(second.applications[0].helper_count, 1);
     assert_eq!(second.applications[0].run_write_bytes, 300);
+    assert_eq!(second.schema_version, SNAPSHOT_SCHEMA_VERSION);
+    assert_eq!(second.devices[0].device_id, "macos:ioreg:7");
+}
+
+#[test]
+fn legacy_raw_snapshot_schema_is_rejected() {
+    let mut legacy = snapshot(1, 100, 200, 1_000, 2_000, 10);
+    legacy.schema_version = 1;
+
+    let error = Engine::default().ingest(legacy).unwrap_err();
+    assert_eq!(error, EngineError::UnsupportedSchema(1));
 }
 
 #[test]
@@ -134,7 +145,7 @@ fn activity_policy_is_explicit_and_completed_activities_can_be_drained() {
 #[test]
 fn swift_probe_fixture_decodes_without_platform_only_metadata() {
     let fixture = r#"{
-      "schemaVersion":1,
+      "schemaVersion":2,
       "capturedAt":"2026-07-30T10:00:00Z",
       "monotonicNanoseconds":1000000000,
       "metricSource":"macos.libproc-rusage-v4+iokit-block-storage",
@@ -145,7 +156,8 @@ fn swift_probe_fixture_decodes_without_platform_only_metadata() {
         "executableName":"示例","readBytes":100,"writeBytes":200,
         "userTimeNanoseconds":1,"systemTimeNanoseconds":2,
         "residentBytes":3,"physicalFootprintBytes":4}],
-      "devices":[],
+      "devices":[{"deviceId":"macos:ioreg:7","readBytes":1,
+        "writeBytes":2,"readOperations":null,"writeOperations":null}],
       "summary":{"discoveredProcesses":1,"readableProcesses":1,
         "restrictedProcesses":0,"exitedProcesses":0,"deviceCount":0,
         "collectionDurationNanoseconds":20}
@@ -155,6 +167,7 @@ fn swift_probe_fixture_decodes_without_platform_only_metadata() {
         decoded.processes[0].normalized_application_id(),
         "executable:示例"
     );
+    assert_eq!(decoded.devices[0].device_id, "macos:ioreg:7");
 }
 
 #[test]
@@ -179,7 +192,7 @@ fn snapshot(
     start_ticks: u64,
 ) -> RawSnapshot {
     RawSnapshot {
-        schema_version: 1,
+        schema_version: SNAPSHOT_SCHEMA_VERSION,
         captured_at: format!("2026-07-30T10:00:0{second}Z"),
         monotonic_nanoseconds: second * 1_000_000_000,
         metric_source: "macos.libproc-rusage-v4+iokit-block-storage".to_owned(),
@@ -205,7 +218,7 @@ fn snapshot(
             physical_footprint_bytes: 10,
         }],
         devices: vec![DeviceIoSample {
-            registry_entry_id: 7,
+            device_id: "macos:ioreg:7".to_owned(),
             read_bytes: device_read,
             write_bytes: device_write,
             read_operations: None,

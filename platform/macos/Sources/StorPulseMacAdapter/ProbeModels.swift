@@ -115,14 +115,14 @@ public struct ProcessIOSample: Codable, Sendable {
 }
 
 public struct DeviceIOSample: Codable, Sendable {
-    public let registryEntryID: UInt64
+    public let deviceID: String
     public let readBytes: UInt64
     public let writeBytes: UInt64
     public let readOperations: UInt64?
     public let writeOperations: UInt64?
 
     private enum CodingKeys: String, CodingKey {
-        case registryEntryID = "registryEntryId"
+        case deviceID = "deviceId"
         case readBytes
         case writeBytes
         case readOperations
@@ -130,13 +130,13 @@ public struct DeviceIOSample: Codable, Sendable {
     }
 
     public init(
-        registryEntryID: UInt64,
+        deviceID: String,
         readBytes: UInt64,
         writeBytes: UInt64,
         readOperations: UInt64?,
         writeOperations: UInt64?
     ) {
-        self.registryEntryID = registryEntryID
+        self.deviceID = deviceID
         self.readBytes = readBytes
         self.writeBytes = writeBytes
         self.readOperations = readOperations
@@ -170,7 +170,7 @@ public struct CollectionSummary: Codable, Sendable {
 }
 
 public struct RawSnapshot: Codable, Sendable {
-    public static let schemaVersion = 1
+    public static let schemaVersion = 2
 
     public let schemaVersion: Int
     public let capturedAt: Date

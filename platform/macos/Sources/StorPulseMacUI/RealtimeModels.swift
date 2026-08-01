@@ -11,13 +11,13 @@ public struct IORate: Codable, Equatable, Sendable {
 }
 
 public struct RealtimeDevice: Codable, Equatable, Sendable {
-    public let registryEntryID: UInt64
+    public let deviceID: String
     public let current: IORate?
     public let runReadBytes: UInt64
     public let runWriteBytes: UInt64
 
     private enum CodingKeys: String, CodingKey {
-        case registryEntryID = "registryEntryId"
+        case deviceID = "deviceId"
         case current
         case runReadBytes
         case runWriteBytes
@@ -121,6 +121,8 @@ public struct ObservationSessionProgress: Codable, Equatable, Sendable {
 }
 
 public struct RealtimeSnapshot: Codable, Equatable, Sendable {
+    public static let schemaVersion = 2
+
     public let schemaVersion: Int
     public let capturedAt: String
     public let monotonicNanoseconds: UInt64

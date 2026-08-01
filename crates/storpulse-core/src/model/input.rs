@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+pub const SNAPSHOT_SCHEMA_VERSION: u32 = 2;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MetricScope {
@@ -77,7 +79,7 @@ impl ProcessIoSample {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceIoSample {
-    pub registry_entry_id: u64,
+    pub device_id: String,
     pub read_bytes: u64,
     pub write_bytes: u64,
     #[serde(default)]

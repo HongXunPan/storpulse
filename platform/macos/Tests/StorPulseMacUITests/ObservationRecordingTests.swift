@@ -50,7 +50,7 @@ private actor ObservationRecordingEngine: StorPulseEngineClient {
 
     func snapshot(at _: UInt64) async throws -> RealtimeSnapshot {
         RealtimeSnapshot(
-            schemaVersion: 1,
+            schemaVersion: RealtimeSnapshot.schemaVersion,
             capturedAt: "2026-07-31T07:00:10Z",
             monotonicNanoseconds: 10_000_000_000,
             metricSource: "fixture",

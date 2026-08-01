@@ -167,10 +167,10 @@ private func deviceDelta(
     keyPath: KeyPath<DeviceIOSample, UInt64>
 ) -> UInt64 {
     let beforeByID = Dictionary(uniqueKeysWithValues: before.devices.map {
-        ($0.registryEntryID, $0[keyPath: keyPath])
+        ($0.deviceID, $0[keyPath: keyPath])
     })
     return after.devices.reduce(into: 0) { total, device in
-        guard let previous = beforeByID[device.registryEntryID] else { return }
+        guard let previous = beforeByID[device.deviceID] else { return }
         total += delta(previous, device[keyPath: keyPath])
     }
 }

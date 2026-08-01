@@ -92,7 +92,7 @@ func historySnapshot(
     )
     let identity = RealtimeProcessIdentity(pid: 42, startTimeTicks: 9)
     return RealtimeSnapshot(
-        schemaVersion: 1,
+        schemaVersion: RealtimeSnapshot.schemaVersion,
         capturedAt: capturedAt,
         monotonicNanoseconds: 1,
         metricSource: "fixture.storage",
@@ -101,7 +101,7 @@ func historySnapshot(
         completeness: "complete",
         devices: [
             RealtimeDevice(
-                registryEntryID: 7,
+                deviceID: "macos:ioreg:7",
                 current: rate,
                 runReadBytes: runReadBytes,
                 runWriteBytes: runWriteBytes

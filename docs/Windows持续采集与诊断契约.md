@@ -41,7 +41,7 @@
 - 会话内设备与进程累计读写和可用的操作次数；
 - 受限、已退出、无法归因、事件丢失、采集耗时和服务开销摘要。
 
-当前共享 `RawSnapshot v1` 的 `registryEntryId` 是 macOS 专属字段。Windows 阶段 1 写代码前必须先升级为 `schemaVersion=2`：设备使用会话内稳定、平台命名空间化且不包含序列号的 `deviceId` 字符串；macOS 和 Windows 同步迁移，测试不得让 Windows 磁盘编号伪装成 IORegistry ID。
+共享 `RawSnapshot` 已升级为 `schemaVersion=2`：设备使用会话内稳定、平台命名空间化且不包含序列号的 `deviceId` 字符串；macOS 使用 `macos:ioreg:<十进制注册表项 ID>`，Windows 适配器必须定义自己的命名空间，测试不得让 Windows 磁盘编号伪装成 IORegistry ID。
 
 客户端只把通过协议和隐私校验的完整快照交给共享内核。超时、断连或失败时发布 stale/failed 状态，不沿用旧速率，也不构造零值快照。
 

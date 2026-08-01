@@ -9,7 +9,8 @@ func realtimeSnapshotDecoding() throws {
     let data = Data(fixtureJSON.utf8)
     let snapshot = try JSONDecoder().decode(RealtimeSnapshot.self, from: data)
 
-    #expect(snapshot.schemaVersion == 1)
+    #expect(snapshot.schemaVersion == RealtimeSnapshot.schemaVersion)
+    #expect(snapshot.devices.first?.deviceID == "macos:ioreg:7")
     #expect(snapshot.deviceRate?.writeBytesPerSecond == 2_048)
     #expect(snapshot.applications.first?.applicationID == "com.example.editor")
     #expect(snapshot.processes.first?.identity.pid == 42)
@@ -198,7 +199,7 @@ private func fixtureRawSnapshot(
         ],
         devices: [
             DeviceIOSample(
-                registryEntryID: 7,
+                deviceID: "macos:ioreg:7",
                 readBytes: readBytes,
                 writeBytes: writeBytes,
                 readOperations: nil,
@@ -218,7 +219,7 @@ private func fixtureRawSnapshot(
 
 private let fixtureJSON = """
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "capturedAt": "2026-07-30T10:00:00Z",
   "monotonicNanoseconds": 2000000000,
   "metricSource": "fixture",
@@ -226,7 +227,7 @@ private let fixtureJSON = """
   "freshness": "fresh",
   "completeness": "restricted",
   "devices": [{
-    "registryEntryId": 7,
+    "deviceId": "macos:ioreg:7",
     "current": {"readBytesPerSecond": 1024, "writeBytesPerSecond": 2048},
     "runReadBytes": 4096,
     "runWriteBytes": 8192

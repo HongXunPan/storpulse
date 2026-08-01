@@ -246,7 +246,7 @@ mod tests {
     fn ffi_ingests_snapshot_and_returns_owned_json_buffer() {
         let handle = sp_engine_create();
         let snapshot = br#"{
-          "schemaVersion":1,"capturedAt":"2026-07-30T10:00:00Z",
+          "schemaVersion":2,"capturedAt":"2026-07-30T10:00:00Z",
           "monotonicNanoseconds":1000000000,"metricSource":"fixture",
           "metricScope":["storage_process"],"freshness":"fresh",
           "completeness":"partial","processes":[],"devices":[],
@@ -265,7 +265,7 @@ mod tests {
         // 安全：返回缓冲区在释放前有效。
         let output = unsafe { slice::from_raw_parts(buffer.ptr, buffer.len) };
         let value: serde_json::Value = serde_json::from_slice(output).unwrap();
-        assert_eq!(value["schemaVersion"], 1);
+        assert_eq!(value["schemaVersion"], 2);
 
         // 安全：缓冲区和句柄均只释放一次。
         unsafe {

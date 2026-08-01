@@ -21,7 +21,7 @@ public struct DeviceCollector: Sendable {
             guard let sample = readDevice(service) else { continue }
             samples.append(sample)
         }
-        return samples.sorted { $0.registryEntryID < $1.registryEntryID }
+        return samples.sorted { $0.deviceID < $1.deviceID }
     }
 
     private func readDevice(_ service: io_registry_entry_t) -> DeviceIOSample? {
@@ -44,7 +44,7 @@ public struct DeviceCollector: Sendable {
         }
 
         return DeviceIOSample(
-            registryEntryID: registryEntryID,
+            deviceID: makeDeviceID(registryEntryID: registryEntryID),
             readBytes: readBytes,
             writeBytes: writeBytes,
             readOperations: number(statistics["Operations (Read)"]),
@@ -54,5 +54,9 @@ public struct DeviceCollector: Sendable {
 
     private func number(_ value: Any?) -> UInt64? {
         (value as? NSNumber)?.uint64Value
+    }
+
+    private func makeDeviceID(registryEntryID: UInt64) -> String {
+        "macos:ioreg:\(registryEntryID)"
     }
 }

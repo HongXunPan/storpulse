@@ -45,7 +45,7 @@ impl DeviceState {
 
         (
             RealtimeDevice {
-                registry_entry_id: sample.registry_entry_id,
+                device_id: sample.device_id.clone(),
                 current: delta.map(|value| value.rate),
                 run_read_bytes: self.run_read_bytes,
                 run_write_bytes: self.run_write_bytes,

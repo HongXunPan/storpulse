@@ -27,7 +27,7 @@ func snapshotEncodingExcludesSensitiveFields() throws {
         ],
         devices: [
             DeviceIOSample(
-                registryEntryID: 7,
+                deviceID: "macos:ioreg:7",
                 readBytes: 500,
                 writeBytes: 600,
                 readOperations: 5,
@@ -46,15 +46,15 @@ func snapshotEncodingExcludesSensitiveFields() throws {
 
     let data = try SnapshotEncoder.encode(snapshot)
     let text = String(decoding: data, as: UTF8.self)
-    #expect(text.contains("\"schemaVersion\":1"))
+    #expect(text.contains("\"schemaVersion\":2"))
     #expect(text.contains("\"parentPid\":1"))
     #expect(text.contains("\"applicationId\":\"com.example.editor\""))
     #expect(text.contains("\"launchedByApplicationId\":\"com.example.launcher\""))
-    #expect(text.contains("\"registryEntryId\":7"))
+    #expect(text.contains("\"deviceId\":\"macos:ioreg:7\""))
     #expect(!text.contains("\"parentPID\""))
     #expect(!text.contains("\"applicationID\""))
     #expect(!text.contains("\"launchedByApplicationID\""))
-    #expect(!text.contains("\"registryEntryID\""))
+    #expect(!text.contains("registryEntryId"))
     #expect(!text.contains("path"))
     #expect(!text.contains("command"))
     #expect(!text.contains("username"))

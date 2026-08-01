@@ -9,6 +9,7 @@ use crate::{
     model::{
         ActivitySummary, Completeness, Freshness, IoRate, ProcessIdentity, RawSnapshot,
         RealtimeDevice, RealtimeProcess, RealtimeSnapshot, RealtimeSummary,
+        SNAPSHOT_SCHEMA_VERSION,
     },
     process_runtime::ProcessState,
     session_tracker::SessionTracker,
@@ -18,7 +19,7 @@ use crate::{
 pub struct Engine {
     config: EngineConfig,
     process_states: HashMap<ProcessIdentity, ProcessState>,
-    device_states: HashMap<u64, DeviceState>,
+    device_states: HashMap<String, DeviceState>,
     session_tracker: SessionTracker,
     activity_tracker: ActivityTracker,
     completed_activities: Vec<ActivitySummary>,
@@ -55,7 +56,7 @@ impl Engine {
             ));
 
         let snapshot = RealtimeSnapshot {
-            schema_version: 1,
+            schema_version: SNAPSHOT_SCHEMA_VERSION,
             captured_at: raw.captured_at.clone(),
             monotonic_nanoseconds: raw.monotonic_nanoseconds,
             metric_source: raw.metric_source,
@@ -142,7 +143,7 @@ impl Engine {
     }
 
     fn validate(&self, raw: &RawSnapshot) -> Result<(), EngineError> {
-        if raw.schema_version != 1 {
+        if raw.schema_version != SNAPSHOT_SCHEMA_VERSION {
             return Err(EngineError::UnsupportedSchema(raw.schema_version));
         }
         if self
@@ -203,10 +204,10 @@ impl Engine {
         let mut has_rate = false;
 
         for sample in &raw.devices {
-            current_ids.insert(sample.registry_entry_id);
+            current_ids.insert(sample.device_id.clone());
             let state = self
                 .device_states
-                .entry(sample.registry_entry_id)
+                .entry(sample.device_id.clone())
                 .or_insert_with(|| DeviceState::new(sample, raw.monotonic_nanoseconds));
             let (mut output, delta) = state.update(sample, raw.monotonic_nanoseconds);
             if let Some(delta) = delta.filter(|_| is_fresh) {
@@ -222,7 +223,7 @@ impl Engine {
         }
         self.device_states
             .retain(|identity, _| current_ids.contains(identity));
-        outputs.sort_by_key(|device| device.registry_entry_id);
+        outputs.sort_by(|left, right| left.device_id.cmp(&right.device_id));
         (outputs, total_delta, has_rate.then_some(total_rate))
     }
 }
