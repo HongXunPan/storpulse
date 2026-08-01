@@ -48,6 +48,49 @@ foreach ($ScriptName in $RequiredScripts) {
     }
 }
 
+. (Join-Path $PackageRoot "scripts/privacy.ps1")
+. (Join-Path $PackageRoot "scripts/diagnostic-export.ps1")
+$ExportValidationRoot = Join-Path $PackageRoot ".diagnostic-export-validation"
+$ExportValidationRunDirectory = Join-Path $ExportValidationRoot "run"
+$ExportValidationArchive = Join-Path $ExportValidationRoot "diagnostic.zip"
+if (Test-Path -LiteralPath $ExportValidationRoot) {
+    Remove-Item -Recurse -Force -LiteralPath $ExportValidationRoot
+}
+try {
+    New-Item -ItemType Directory -Force -Path $ExportValidationRunDirectory | Out-Null
+    $EmptyConsoleLines = New-Object System.Collections.Generic.List[string]
+    $ExportValidationManifest = [ordered]@{
+        schemaVersion = 1
+        product = "StorPulse Windows 空诊断导出回归校验"
+    }
+    $ExportValidationCapabilities = [ordered]@{
+        schemaVersion = 1
+        actualAdministrator = $false
+    }
+    $ExportValidationSummary = [ordered]@{
+        schemaVersion = 1
+        status = "completed"
+        outcome = "empty_diagnostic_export_validation_completed"
+    }
+    $ExportValidationResult = Export-StorPulseDiagnostic `
+        -RunDirectory $ExportValidationRunDirectory `
+        -ArchivePath $ExportValidationArchive `
+        -Manifest $ExportValidationManifest `
+        -Capabilities $ExportValidationCapabilities `
+        -Summary $ExportValidationSummary `
+        -Errors @() `
+        -ConsoleLines $EmptyConsoleLines
+    if (-not $ExportValidationResult.created -or
+        -not (Test-Path -LiteralPath $ExportValidationArchive -PathType Leaf)) {
+        throw "空诊断导出回归校验失败：empty_diagnostic_export_validation_failed"
+    }
+}
+finally {
+    if (Test-Path -LiteralPath $ExportValidationRoot) {
+        Remove-Item -Recurse -Force -LiteralPath $ExportValidationRoot
+    }
+}
+
 $Manifest = [System.IO.File]::ReadAllText(
     (Join-Path $PackageRoot "package-manifest.json"),
     [System.Text.Encoding]::UTF8

@@ -1,6 +1,8 @@
 ﻿function Test-DiagnosticText {
     param(
-        [Parameter(Mandatory = $true)] [string]$Text,
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$Text,
         [Parameter(Mandatory = $true)] [string]$CurrentUserName
     )
 

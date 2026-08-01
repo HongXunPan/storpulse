@@ -84,11 +84,19 @@ preview_lifecycle = (
 preview_invoke_client = (
     root / "scripts" / "windows-preview" / "invoke-client.ps1"
 ).read_text(encoding="utf-8-sig")
+preview_privacy = (
+    root / "scripts" / "windows-preview" / "privacy.ps1"
+).read_text(encoding="utf-8-sig")
+preview_package_validator = (
+    root / "scripts" / "validate_windows_preview_package.ps1"
+).read_text(encoding="utf-8-sig")
 if (
     'storpulse-diagnostics-{0}-{1}.zip' not in preview_collector
     or "Test-DiagnosticArchivePrivacy" not in preview_export
     or "standard_user_required" not in preview_collector
     or "unexpected_diagnostic_content" not in preview_export
+    or "[AllowEmptyString()]" not in preview_privacy
+    or "empty_diagnostic_export_validation_failed" not in preview_package_validator
 ):
     raise SystemExit("Windows 持续采集入口缺少阶段命名、标准用户或归档白名单门禁")
 
