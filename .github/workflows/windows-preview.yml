@@ -6,6 +6,7 @@ on:
     paths:
       - "Cargo.toml"
       - "Cargo.lock"
+      - ".gitattributes"
       - "global.json"
       - "crates/**"
       - "platform/windows/storpulse-windows-app/**"
@@ -28,6 +29,7 @@ on:
     paths:
       - "Cargo.toml"
       - "Cargo.lock"
+      - ".gitattributes"
       - "global.json"
       - "crates/**"
       - "platform/windows/storpulse-windows-app/**"

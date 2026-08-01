@@ -1,6 +1,7 @@
 using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using StorPulse.Windows.App.Diagnostics;
 using StorPulse.Windows.App.ViewModels;
 using Windows.Graphics;
 
@@ -12,10 +13,16 @@ public sealed partial class MainWindow : Window
 
     public MainWindow()
     {
+        ShellGateConsoleReporter.Stage("main_window_model_started");
         ViewModel = new RealtimeShellViewModel();
+        ShellGateConsoleReporter.Stage("main_window_model_completed");
+        ShellGateConsoleReporter.Stage("main_window_xaml_initialize_started");
         InitializeComponent();
+        ShellGateConsoleReporter.Stage("main_window_xaml_initialize_completed");
         Title = "StorPulse · Windows 阶段 2A 界面门禁";
+        ShellGateConsoleReporter.Stage("window_resize_started");
         ResizeForGate();
+        ShellGateConsoleReporter.Stage("window_resize_completed");
 
         _refreshTimer = new DispatcherTimer
         {
@@ -42,6 +49,7 @@ public sealed partial class MainWindow : Window
 
     private void MainWindow_Closed(object sender, WindowEventArgs args)
     {
+        ShellGateConsoleReporter.Stage("window_closed");
         _refreshTimer.Stop();
         _refreshTimer.Tick -= RefreshTimer_Tick;
         Closed -= MainWindow_Closed;
