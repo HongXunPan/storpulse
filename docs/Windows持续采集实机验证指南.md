@@ -2,7 +2,7 @@
 
 ## 1. 验证范围
 
-本指南用于在 Windows 10 22H2 x64 上验证 StorPulse 产品服务的持续协议、真实 ETW 聚合、普通用户启动、正常停止、客户端断开、连接超时、客户端强杀清理和休眠恢复。它是 Windows 阶段 1 实机门禁，不等于 Windows 11、WinUI、签名安装、长期运行或正式发布已经通过。
+本指南用于在 Windows 10 22H2 x64 上验证 StorPulse 产品服务的持续协议、真实 ETW 聚合、普通用户启动、正常停止、客户端断开、连接超时、客户端强杀清理和休眠恢复。当前 Win10 Pro 22H2 x64 传统待机（S3）已取得标准用户实机通过结果；它是 Windows 阶段 1 实机门禁，不等于 Windows 11、Modern Standby、WinUI、签名安装、长期运行或正式发布已经通过。
 
 测试包由 GitHub Actions 构建；本机不需要 Rust、Visual Studio、.NET 或“性能日志用户”组。安装和卸载会请求 UAC，所有采集入口必须保持普通用户权限。
 
@@ -34,13 +34,13 @@
    diagnostics\storpulse-diagnostics-windows-stage1-client-termination-cleanup-*.zip
    ```
 
-7. 双击 `验证休眠恢复.cmd`。等窗口显示绿色的“休眠恢复门禁已准备完成”后，保持窗口打开，手动选择 Windows 的“睡眠”；等待至少 10 秒再唤醒电脑。恢复后脚本会再次执行受控负载并生成：
+7. 双击 `验证休眠恢复.cmd`。该入口使用 30 秒受控负载观察预算；等窗口显示绿色的“休眠恢复门禁已准备完成”后，保持窗口打开，手动选择 Windows 的“睡眠”；等待至少 10 秒再唤醒电脑。恢复后脚本会等待磁盘唤醒并再次执行受控负载，然后生成：
 
    ```text
    diagnostics\storpulse-diagnostics-windows-stage1-sleep-resume-validation-*.zip
    ```
 
-   不要用关机、重启、关闭显示器或锁屏替代睡眠。若系统没有“睡眠”选项，保留失败 ZIP 和窗口输出，不要改用休眠命令或第三方工具。
+   不要用关机、重启、关闭显示器或锁屏替代睡眠。远程控制、下载或媒体应用可能持有系统电源请求并阻止真实睡眠，测试前应正常退出，不要使用 `powercfg /requestsoverride` 绕过。若系统没有“睡眠”选项，保留失败 ZIP 和窗口输出，不要改用休眠命令或第三方工具。
 
 8. 把五个 ZIP 放到约定的反馈目录或在 `反馈问题.url` 打开的 GitHub Issues 页面中自行上传。浏览器不会自动读取或上传文件。
 9. 双击 `卸载 StorPulse 按需服务.cmd`，允许 UAC；看到绿色清理成功和 `exit_code=0` 后再删除解压目录。

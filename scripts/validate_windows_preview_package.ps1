@@ -176,6 +176,10 @@ foreach ($Entry in $EntryChecks.GetEnumerator()) {
     if (-not $EntryText.Contains($Entry.Value) -or $EntryText -notmatch "(?m)^pause\r?$") {
         throw "入口不会保留输出或阶段名不正确：$($Entry.Key)"
     }
+    if ($Entry.Key -eq "验证休眠恢复.cmd" -and
+        -not $EntryText.Contains("-DurationSeconds 30")) {
+        throw "休眠恢复入口没有保留恢复后磁盘唤醒观察时间"
+    }
 }
 
 $FeedbackText = [System.IO.File]::ReadAllText(
