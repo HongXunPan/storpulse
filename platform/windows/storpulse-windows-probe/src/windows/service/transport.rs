@@ -4,8 +4,8 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use windows_sys::Win32::Foundation::{
-    CloseHandle, ERROR_NO_DATA, ERROR_PIPE_CONNECTED, ERROR_PIPE_LISTENING, GENERIC_READ,
-    GetLastError, HANDLE, INVALID_HANDLE_VALUE, LocalFree,
+    CloseHandle, ERROR_MORE_DATA, ERROR_NO_DATA, ERROR_PIPE_CONNECTED, ERROR_PIPE_LISTENING,
+    GENERIC_READ, GetLastError, HANDLE, INVALID_HANDLE_VALUE, LocalFree,
 };
 use windows_sys::Win32::Security::Authorization::{
     ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1,
@@ -183,8 +183,7 @@ impl Pipe {
                 return Err(ServiceFailure::new("ipc", "service_stop_requested", 995));
             }
             let mut available = 0;
-            let mut message_bytes = 0;
-            // SAFETY：PeekNamedPipe 不移除数据；查询全部可读字节和当前消息剩余字节。
+            // SAFETY：PeekNamedPipe 不移除数据；这里只判断是否已有消息可读。
             let peeked = unsafe {
                 PeekNamedPipe(
                     self.handle,
@@ -192,24 +191,16 @@ impl Pipe {
                     0,
                     std::ptr::null_mut(),
                     &mut available,
-                    &mut message_bytes,
+                    std::ptr::null_mut(),
                 )
             };
             if peeked == 0 {
                 return Err(ServiceFailure::last("ipc", "PeekNamedPipe"));
             }
-            let readable = if message_bytes > 0 {
-                message_bytes
-            } else {
-                available
-            };
-            if readable > PIPE_BUFFER_BYTES {
-                return Err(ServiceFailure::new("ipc", "message_too_large", 122));
-            }
-            if readable > 0 {
-                let mut payload = vec![0_u8; readable as usize];
+            if available > 0 {
+                let mut payload = vec![0_u8; PIPE_BUFFER_BYTES as usize];
                 let mut read = 0;
-                // SAFETY：缓冲区大小等于 PeekNamedPipe 报告的当前消息剩余长度。
+                // SAFETY：句柄处于阻塞消息模式；固定上限缓冲区可容纳任一合法消息。
                 let succeeded = unsafe {
                     ReadFile(
                         self.handle,
@@ -220,11 +211,31 @@ impl Pipe {
                     )
                 };
                 if succeeded == 0 {
-                    return Err(ServiceFailure::last("ipc", "ReadFile"));
+                    let code = unsafe { GetLastError() };
+                    let api = if code == ERROR_MORE_DATA {
+                        "ReadFile.message_too_large"
+                    } else {
+                        "ReadFile"
+                    };
+                    return Err(ServiceFailure::new("ipc", api, code));
+                }
+                if read == 0 {
+                    return Err(ServiceFailure::new("ipc", "ReadFile.empty_message", 13));
                 }
                 payload.truncate(read as usize);
-                return serde_json::from_slice(&payload)
-                    .map_err(|_| ServiceFailure::new("ipc", "serde_json.deserialize", 13));
+                return serde_json::from_slice(&payload).map_err(|error| {
+                    let api = if error.to_string().starts_with("trailing characters") {
+                        "serde_json.deserialize.trailing"
+                    } else {
+                        match error.classify() {
+                            serde_json::error::Category::Io => "serde_json.deserialize.io",
+                            serde_json::error::Category::Syntax => "serde_json.deserialize.syntax",
+                            serde_json::error::Category::Data => "serde_json.deserialize.data",
+                            serde_json::error::Category::Eof => "serde_json.deserialize.eof",
+                        }
+                    };
+                    ServiceFailure::new("ipc", api, 13)
+                });
             }
             if Instant::now() >= deadline {
                 return Err(ServiceFailure::new("ipc", "ReadFile.timeout", 1460));

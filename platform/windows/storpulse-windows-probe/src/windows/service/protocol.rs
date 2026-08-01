@@ -70,6 +70,7 @@ impl ServiceResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::ProcessDiskIoReport;
 
     #[test]
     fn begin_request_has_stable_tag_and_version() {
@@ -96,5 +97,38 @@ mod tests {
 
         assert!(encoded.contains("\"command\":\"acknowledge\""));
         assert_eq!(decoded.schema_version(), SCHEMA_VERSION);
+    }
+
+    #[test]
+    fn completed_response_round_trips_with_large_etw_report() {
+        let mut etw = EtwEventReport::default();
+        etw.top_processes = (0..256)
+            .map(|process_id| ProcessDiskIoReport {
+                process_id,
+                is_probe: process_id == 42,
+                read_bytes: u64::from(process_id) * 1_024,
+                write_bytes: u64::from(process_id) * 2_048,
+                read_events: u64::from(process_id) * 3,
+                write_events: u64::from(process_id) * 5,
+            })
+            .collect();
+        let response = ServiceResponse::Completed {
+            schema_version: SCHEMA_VERSION,
+            etw: Box::new(etw),
+            service: ServiceGateReport::default(),
+        };
+
+        let encoded = serde_json::to_vec(&response).expect("大型完成响应应可编码");
+        assert!(encoded.len() > 16 * 1_024);
+        assert!(encoded.len() < 65_536);
+
+        let decoded: ServiceResponse =
+            serde_json::from_slice(&encoded).expect("大型完成响应应可解码");
+        match decoded {
+            ServiceResponse::Completed { etw, .. } => {
+                assert_eq!(etw.top_processes.len(), 256);
+            }
+            _ => panic!("响应类型应保持 completed"),
+        }
     }
 }
