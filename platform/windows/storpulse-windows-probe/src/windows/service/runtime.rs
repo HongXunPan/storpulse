@@ -93,10 +93,11 @@ fn run_service(expected_nonce: String) -> Result<(), ServiceFailure> {
     set_status(SERVICE_RUNNING, NO_ERROR, 0, 0);
     pipe.connect_server(Instant::now() + Duration::from_secs(30), &STOP_REQUESTED)?;
 
-    let begin: ServiceRequest = pipe.read_message_until(
+    let begin_payload = pipe.read_payload_until(
         Instant::now() + Duration::from_secs(10),
         Some(&STOP_REQUESTED),
     )?;
+    let begin = ServiceRequest::decode(&begin_payload)?;
     let (nonce, requested_process_id, duration_seconds) = match begin {
         ServiceRequest::Begin {
             schema_version,
@@ -153,10 +154,11 @@ fn run_service(expected_nonce: String) -> Result<(), ServiceFailure> {
         client_elevated: client.elevated,
     })?;
 
-    let finish = pipe.read_message_until::<ServiceRequest>(
+    let finish_payload = pipe.read_payload_until(
         Instant::now() + Duration::from_secs(duration_seconds.saturating_add(30)),
         Some(&STOP_REQUESTED),
     );
+    let finish = finish_payload.and_then(|payload| ServiceRequest::decode(&payload));
     let short_lived_processes = match finish {
         Ok(ServiceRequest::Finish {
             schema_version,
@@ -202,16 +204,19 @@ fn run_service(expected_nonce: String) -> Result<(), ServiceFailure> {
             &service_after,
         ),
     };
-    pipe.write_message(&ServiceResponse::Completed {
+    let completed = ServiceResponse::Completed {
         schema_version: SCHEMA_VERSION,
         etw: Box::new(etw_report),
         service,
-    })?;
+    };
+    completed.validate_round_trip()?;
+    pipe.write_message(&completed)?;
 
-    let acknowledgement = pipe.read_message_until::<ServiceRequest>(
+    let acknowledgement_payload = pipe.read_payload_until(
         Instant::now() + Duration::from_secs(10),
         Some(&STOP_REQUESTED),
     )?;
+    let acknowledgement = ServiceRequest::decode(&acknowledgement_payload)?;
     match acknowledgement {
         ServiceRequest::Acknowledge { schema_version } if schema_version == SCHEMA_VERSION => {
             Ok(())

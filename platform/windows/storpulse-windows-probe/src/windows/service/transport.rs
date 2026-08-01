@@ -2,7 +2,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
-use serde::de::DeserializeOwned;
 use windows_sys::Win32::Foundation::{
     CloseHandle, ERROR_MORE_DATA, ERROR_NO_DATA, ERROR_PIPE_CONNECTED, ERROR_PIPE_LISTENING,
     GENERIC_READ, GetLastError, HANDLE, INVALID_HANDLE_VALUE, LocalFree,
@@ -173,11 +172,11 @@ impl Pipe {
         Ok(())
     }
 
-    pub(super) fn read_message_until<T: DeserializeOwned>(
+    pub(super) fn read_payload_until(
         &self,
         deadline: Instant,
         stop_requested: Option<&AtomicBool>,
-    ) -> Result<T, ServiceFailure> {
+    ) -> Result<Vec<u8>, ServiceFailure> {
         loop {
             if stop_requested.is_some_and(|stop| stop.load(Ordering::Relaxed)) {
                 return Err(ServiceFailure::new("ipc", "service_stop_requested", 995));
@@ -223,19 +222,7 @@ impl Pipe {
                     return Err(ServiceFailure::new("ipc", "ReadFile.empty_message", 13));
                 }
                 payload.truncate(read as usize);
-                return serde_json::from_slice(&payload).map_err(|error| {
-                    let api = if error.to_string().starts_with("trailing characters") {
-                        "serde_json.deserialize.trailing"
-                    } else {
-                        match error.classify() {
-                            serde_json::error::Category::Io => "serde_json.deserialize.io",
-                            serde_json::error::Category::Syntax => "serde_json.deserialize.syntax",
-                            serde_json::error::Category::Data => "serde_json.deserialize.data",
-                            serde_json::error::Category::Eof => "serde_json.deserialize.eof",
-                        }
-                    };
-                    ServiceFailure::new("ipc", api, 13)
-                });
+                return Ok(payload);
             }
             if Instant::now() >= deadline {
                 return Err(ServiceFailure::new("ipc", "ReadFile.timeout", 1460));

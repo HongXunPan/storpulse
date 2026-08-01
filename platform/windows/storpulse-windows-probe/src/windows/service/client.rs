@@ -147,8 +147,8 @@ fn capture_from_service(
         client_process_id: process_id,
         duration_seconds: options.duration_seconds,
     })?;
-    let ready: ServiceResponse =
-        pipe.read_message_until(Instant::now() + Duration::from_secs(10), None)?;
+    let ready_payload = pipe.read_payload_until(Instant::now() + Duration::from_secs(10), None)?;
+    let ready = ServiceResponse::decode(&ready_payload)?;
     if ready.schema_version() != SCHEMA_VERSION {
         return Err(ServiceFailure::new(
             "protocol",
@@ -234,8 +234,9 @@ fn capture_from_service(
         schema_version: SCHEMA_VERSION,
         short_lived_processes: identities,
     })?;
-    let completed: ServiceResponse =
-        pipe.read_message_until(Instant::now() + Duration::from_secs(15), None)?;
+    let completed_payload =
+        pipe.read_payload_until(Instant::now() + Duration::from_secs(15), None)?;
+    let completed = ServiceResponse::decode(&completed_payload)?;
     let (etw, mut service) = match completed {
         ServiceResponse::Completed { etw, service, .. } => (*etw, service),
         ServiceResponse::Failed { code, .. } => {
