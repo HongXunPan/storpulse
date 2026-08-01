@@ -69,15 +69,22 @@ $InstallerText = [System.IO.File]::ReadAllText(
 )
 if (-not $InstallerText.Contains("New-Service @ServiceParameters") -or
     $InstallerText.Contains('"create", $ServiceName') -or
-    -not $InstallerText.Contains('$ServiceSddl = "D:(A;;GA;;;SY)(A;;GA;;;BA)(A;;RPLCLORC;;;IU)"')) {
+    -not $InstallerText.Contains('$ServiceSddl = "D:(A;;GA;;;SY)(A;;GA;;;BA)(A;;CCRPLCLORC;;;IU)"')) {
     throw "安装脚本没有使用原生手动服务与最小交互用户权限"
 }
 $CollectorText = [System.IO.File]::ReadAllText(
     (Join-Path $PackageRoot "scripts/collect.ps1"),
     [System.Text.Encoding]::UTF8
 )
+$EnvironmentText = [System.IO.File]::ReadAllText(
+    (Join-Path $PackageRoot "scripts/collect-environment.ps1"),
+    [System.Text.Encoding]::UTF8
+)
 if ($CollectorText.Contains("-Verb RunAs") -or
     -not $CollectorText.Contains("standard_user_required") -or
+    -not $CollectorText.Contains("service_config_query_unavailable") -or
+    -not $CollectorText.Contains("serviceConfigReadable = `$ServiceConfigReadable") -or
+    -not $EnvironmentText.Contains("function Get-InstalledServiceState") -or
     -not $CollectorText.Contains("Test-DiagnosticArchivePrivacy") -or
     -not $CollectorText.Contains("unexpected_diagnostic_content")) {
     throw "采集脚本没有保持标准用户或缺少归档白名单隐私检查"

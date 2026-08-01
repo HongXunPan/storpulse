@@ -55,6 +55,7 @@ function Read-SafeConsole {
 
 $CollectorStatus = "initializing"
 $FailureStage = "initialize"
+$FailureSafeErrorCode = "collector_failure"
 $FailureType = $null
 $FailureHResult = $null
 $ClientExitCode = $null
@@ -63,6 +64,7 @@ $PackageCommit = "unknown"
 $ClientHashMatches = $false
 $InstalledServiceHashMatches = $false
 $ServiceInstalled = $false
+$ServiceConfigReadable = $false
 $ServiceManual = $false
 $ServiceLocalSystem = $false
 $ServicePathMatches = $false
@@ -103,28 +105,36 @@ try {
     }
 
     $FailureStage = "validate_service"
-    $ServiceRecord = Get-CimInstance -ClassName Win32_Service -Filter "Name='StorPulseCollector'"
-    $ServiceInstalled = $null -ne $ServiceRecord
-    if (-not $ServiceInstalled -or
-        -not (Test-Path -LiteralPath $InstalledServicePath -PathType Leaf)) {
+    $FailureSafeErrorCode = "service_validation_failed"
+    $ServiceState = Get-InstalledServiceState `
+        -ServiceName "StorPulseCollector" `
+        -InstalledServicePath $InstalledServicePath `
+        -ExpectedSha256 ([string]$Manifest.serviceSha256)
+    $ServiceInstalled = [bool]$ServiceState.installed
+    $ServiceConfigReadable = [bool]$ServiceState.configReadable
+    $ServiceManual = [bool]$ServiceState.manual
+    $ServiceLocalSystem = [bool]$ServiceState.localSystem
+    $ServicePathMatches = [bool]$ServiceState.pathMatches
+    $InstalledServiceHashMatches = [bool]$ServiceState.hashMatches
+    if (-not $ServiceInstalled) {
+        $FailureSafeErrorCode = "service_not_installed"
         throw "service_not_installed"
     }
-    $ServiceManual = $ServiceRecord.StartMode -eq "Manual"
-    $ServiceLocalSystem = $ServiceRecord.StartName -eq "LocalSystem"
-    $ExpectedServicePath = ('"{0}"' -f $InstalledServicePath)
-    $ServicePathMatches = [string]::Equals(
-        ([string]$ServiceRecord.PathName).Trim(),
-        $ExpectedServicePath,
-        [StringComparison]::OrdinalIgnoreCase
-    )
-    $InstalledServiceHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $InstalledServicePath).Hash.ToLowerInvariant()
-    $InstalledServiceHashMatches = $InstalledServiceHash -eq ([string]$Manifest.serviceSha256).ToLowerInvariant()
-    if (-not $ServiceManual -or -not $ServiceLocalSystem -or
-        -not $ServicePathMatches -or -not $InstalledServiceHashMatches) {
+    if (-not $ServiceConfigReadable) {
+        $FailureSafeErrorCode = "service_config_query_unavailable"
+        throw "service_config_query_unavailable"
+    }
+    if (-not $InstalledServiceHashMatches) {
+        $FailureSafeErrorCode = "installed_service_hash_mismatch"
+        throw "installed_service_hash_mismatch"
+    }
+    if (-not $ServiceManual -or -not $ServiceLocalSystem -or -not $ServicePathMatches) {
+        $FailureSafeErrorCode = "installed_service_contract_mismatch"
         throw "installed_service_contract_mismatch"
     }
 
     $FailureStage = "run_client"
+    $FailureSafeErrorCode = "client_execution_failed"
     $ClientRun = Invoke-StorPulseClient `
         -ClientPath $ClientPath `
         -OutputDirectory $RunDirectory `
@@ -140,6 +150,7 @@ try {
     }
 
     $FailureStage = "read_summary"
+    $FailureSafeErrorCode = "summary_validation_failed"
     $SummaryPath = Join-Path $RunDirectory "summary.json"
     if (-not (Test-Path -LiteralPath $SummaryPath -PathType Leaf)) {
         throw "summary_missing"
@@ -166,6 +177,7 @@ foreach ($Line in @(Read-SafeConsole -Path $StandardErrorPath)) {
 }
 if ($null -ne $FailureStage) {
     $ConsoleLines.Add("collector_failure_stage=$FailureStage")
+    $ConsoleLines.Add("collector_failure_code=$FailureSafeErrorCode")
 }
 if ($null -ne $FailureType) {
     $ConsoleLines.Add("collector_failure_type=$FailureType")
@@ -191,7 +203,7 @@ if ($null -eq $Summary) {
         serviceName = "StorPulseCollector"
         failure = [ordered]@{
             phase = if ($null -ne $FailureStage) { $FailureStage } else { "collector" }
-            safeErrorCode = "collector_failure"
+            safeErrorCode = $FailureSafeErrorCode
             nativeCode = $null
         }
     }
@@ -206,7 +218,7 @@ if ($null -ne $SummaryFailureProperty -and $null -ne $SummaryFailureProperty.Val
 if ($null -ne $FailureStage) {
     $Errors += [ordered]@{
         phase = $FailureStage
-        safeErrorCode = "collector_failure"
+        safeErrorCode = $FailureSafeErrorCode
         failureType = $FailureType
         hresult = $FailureHResult
     }
@@ -221,6 +233,7 @@ $Capabilities = [ordered]@{
     packageCommit = $PackageCommit
     clientHashMatches = $ClientHashMatches
     serviceInstalled = $ServiceInstalled
+    serviceConfigReadable = $ServiceConfigReadable
     serviceManual = $ServiceManual
     serviceLocalSystem = $ServiceLocalSystem
     servicePathMatches = $ServicePathMatches

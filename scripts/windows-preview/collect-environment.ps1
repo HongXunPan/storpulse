@@ -33,3 +33,43 @@ function Get-OsSnapshot {
         evidenceClass = $EvidenceClass
     }
 }
+
+function Get-InstalledServiceState {
+    param(
+        [Parameter(Mandatory = $true)] [string]$ServiceName,
+        [Parameter(Mandatory = $true)] [string]$InstalledServicePath,
+        [Parameter(Mandatory = $true)] [string]$ExpectedSha256
+    )
+
+    $ServiceRecord = Get-CimInstance -ClassName Win32_Service `
+        -Filter ("Name='{0}'" -f $ServiceName)
+    $Installed = $null -ne $ServiceRecord -and
+        (Test-Path -LiteralPath $InstalledServicePath -PathType Leaf)
+    if (-not $Installed) {
+        return [pscustomobject]@{
+            installed = $false
+            configReadable = $false
+            manual = $false
+            localSystem = $false
+            pathMatches = $false
+            hashMatches = $false
+        }
+    }
+
+    $ExpectedPath = ('"{0}"' -f $InstalledServicePath)
+    $ActualHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $InstalledServicePath).Hash
+    return [pscustomobject]@{
+        installed = $true
+        configReadable = -not [string]::IsNullOrWhiteSpace([string]$ServiceRecord.StartMode) -and
+            -not [string]::IsNullOrWhiteSpace([string]$ServiceRecord.StartName) -and
+            -not [string]::IsNullOrWhiteSpace([string]$ServiceRecord.PathName)
+        manual = $ServiceRecord.StartMode -eq "Manual"
+        localSystem = $ServiceRecord.StartName -eq "LocalSystem"
+        pathMatches = [string]::Equals(
+            ([string]$ServiceRecord.PathName).Trim(),
+            $ExpectedPath,
+            [StringComparison]::OrdinalIgnoreCase
+        )
+        hashMatches = $ActualHash.ToLowerInvariant() -eq $ExpectedSha256.ToLowerInvariant()
+    }
+}

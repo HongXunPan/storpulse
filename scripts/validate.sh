@@ -70,6 +70,9 @@ for filename, stage in preview_entries.items():
 preview_collector = (root / "scripts" / "windows-preview" / "collect.ps1").read_text(
     encoding="utf-8-sig"
 )
+preview_environment = (
+    root / "scripts" / "windows-preview" / "collect-environment.ps1"
+).read_text(encoding="utf-8-sig")
 if (
     'storpulse-diagnostics-{0}-{1}.zip' not in preview_collector
     or "Test-DiagnosticArchivePrivacy" not in preview_collector
@@ -81,8 +84,20 @@ if (
 preview_installer = (
     root / "scripts" / "windows-preview" / "install-service.ps1"
 ).read_text(encoding="utf-8-sig")
-if "New-Service @ServiceParameters" not in preview_installer or '"create", $ServiceName' in preview_installer:
+if (
+    "New-Service @ServiceParameters" not in preview_installer
+    or '"create", $ServiceName' in preview_installer
+    or '$ServiceSddl = "D:(A;;GA;;;SY)(A;;GA;;;BA)(A;;CCRPLCLORC;;;IU)"'
+    not in preview_installer
+):
     raise SystemExit("Windows 持续采集安装脚本没有使用 PowerShell 原生服务入口")
+
+if (
+    "service_config_query_unavailable" not in preview_collector
+    or "serviceConfigReadable = $ServiceConfigReadable" not in preview_collector
+    or "function Get-InstalledServiceState" not in preview_environment
+):
+    raise SystemExit("Windows 持续采集诊断缺少服务配置可读性结果")
 
 preview_packager = (root / "scripts" / "package_windows_preview.ps1").read_text(
     encoding="utf-8-sig"

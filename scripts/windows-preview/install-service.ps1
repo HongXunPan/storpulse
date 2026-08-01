@@ -13,7 +13,7 @@ $SourceBinary = Join-Path $PackageRoot "storpulse-windows-service.exe"
 $ManifestPath = Join-Path $PackageRoot "package-manifest.json"
 $InstallDirectory = Join-Path ${env:ProgramFiles} "StorPulse\Collector"
 $InstalledBinary = Join-Path $InstallDirectory "storpulse-windows-service.exe"
-$ServiceSddl = "D:(A;;GA;;;SY)(A;;GA;;;BA)(A;;RPLCLORC;;;IU)"
+$ServiceSddl = "D:(A;;GA;;;SY)(A;;GA;;;BA)(A;;CCRPLCLORC;;;IU)"
 
 function Test-Administrator {
     $Identity = [Security.Principal.WindowsIdentity]::GetCurrent()
