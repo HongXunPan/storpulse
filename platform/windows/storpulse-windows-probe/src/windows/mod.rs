@@ -2,6 +2,7 @@ mod environment;
 mod error;
 mod etw;
 mod process;
+mod service;
 mod unbuffered_file;
 mod workload;
 
@@ -18,7 +19,14 @@ use self::error::{NativeFailure, RunError};
 
 pub fn run() -> Result<(), RunError> {
     match ProbeCommand::parse().map_err(RunError::new)? {
-        ProbeCommand::Diagnostic(options) => run_diagnostic(options),
+        ProbeCommand::Diagnostic(options) => {
+            if options.service_mode {
+                service::run_diagnostic(options)
+            } else {
+                run_diagnostic(options)
+            }
+        }
+        ProbeCommand::Service => service::run_dispatcher(),
         ProbeCommand::ShortLivedRead(path) => {
             workload::perform_short_lived_read(&path).map_err(|error| {
                 RunError::new(format!("短命读取负载失败：{} ({})", error.api, error.code))
@@ -146,6 +154,7 @@ fn run_diagnostic(options: ProbeOptions) -> Result<(), RunError> {
         self_measurements,
         etw: etw_report,
         workload,
+        service: None,
         errors,
         limitations: vec![
             "GetProcessIoCounters 是广义进程 I/O，不命名为磁盘专属 I/O",

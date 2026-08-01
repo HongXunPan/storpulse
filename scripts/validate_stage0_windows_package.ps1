@@ -24,7 +24,18 @@ $DiagnosticsRoot = Join-Path $PackageRoot "diagnostics"
 $EntryFiles = @(
     "收集标准用户日志.cmd",
     "收集性能日志用户日志.cmd",
-    "收集管理员日志.cmd"
+    "收集管理员日志.cmd",
+    "安装按需服务门禁.cmd",
+    "收集按需服务门禁日志.cmd",
+    "验证异常断开清理.cmd",
+    "卸载按需服务门禁.cmd",
+    "Windows按需服务门禁指南.md"
+)
+$InternalScripts = @(
+    "install-service.ps1",
+    "uninstall-service.ps1",
+    "launch-service-install.ps1",
+    "launch-service-uninstall.ps1"
 )
 
 if (-not (Test-Path -LiteralPath $CollectorPath -PathType Leaf)) {
@@ -35,6 +46,19 @@ foreach ($EntryFile in $EntryFiles) {
     if (-not (Test-Path -LiteralPath $EntryPath -PathType Leaf)) {
         throw "成品包缺少权限模式入口：$EntryPath"
     }
+}
+foreach ($InternalScript in $InternalScripts) {
+    $InternalPath = Join-Path (Join-Path $PackageRoot "scripts") $InternalScript
+    if (-not (Test-Path -LiteralPath $InternalPath -PathType Leaf)) {
+        throw "成品包缺少按需服务内部脚本：$InternalPath"
+    }
+}
+$ManifestPath = Join-Path $PackageRoot "package-manifest.json"
+$Manifest = [System.IO.File]::ReadAllText($ManifestPath, [System.Text.Encoding]::UTF8) |
+    ConvertFrom-Json
+if ($Manifest.serviceName -ne "StorPulseStage0Collector" -or
+    $Manifest.serviceStartType -ne "demand") {
+    throw "成品包按需服务清单不匹配"
 }
 if (Test-Path -LiteralPath $DiagnosticsRoot) {
     Remove-Item -Recurse -Force -LiteralPath $DiagnosticsRoot

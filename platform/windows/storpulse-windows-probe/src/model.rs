@@ -1,7 +1,7 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-#[derive(Clone, Default, Serialize)]
+#[derive(Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NativeIoCounters {
     pub read_operations: u64,
@@ -12,7 +12,7 @@ pub struct NativeIoCounters {
     pub other_bytes: u64,
 }
 
-#[derive(Clone, Default, Serialize)]
+#[derive(Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProcessMeasurements {
     pub process_id: u32,
@@ -36,7 +36,7 @@ pub struct ProcessScanReport {
     pub broad_io_write_bytes: u64,
 }
 
-#[derive(Default, Serialize)]
+#[derive(Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SelfMeasurementReport {
     pub idle_read_delta_bytes: u64,
@@ -64,7 +64,7 @@ pub struct WorkloadReport {
     pub cleanup_succeeded: bool,
 }
 
-#[derive(Clone, Default, Serialize)]
+#[derive(Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EtwEventReport {
     pub session_started: bool,
@@ -99,7 +99,7 @@ pub struct EtwEventReport {
     pub top_processes: Vec<ProcessDiskIoReport>,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProcessDiskIoReport {
     pub process_id: u32,
@@ -108,6 +108,21 @@ pub struct ProcessDiskIoReport {
     pub write_bytes: u64,
     pub read_events: u64,
     pub write_events: u64,
+}
+
+#[derive(Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServiceGateReport {
+    pub service_name: String,
+    pub service_process_id: u32,
+    pub service_local_system: bool,
+    pub client_process_id_matched: bool,
+    pub client_elevated: Option<bool>,
+    pub client_authenticated: bool,
+    pub pipe_reject_remote_clients: bool,
+    pub service_stopped: bool,
+    pub disconnect_cleanup_test: bool,
+    pub service_self_measurements: SelfMeasurementReport,
 }
 
 #[derive(Serialize)]
@@ -152,6 +167,8 @@ pub struct Stage0Report {
     pub self_measurements: SelfMeasurementReport,
     pub etw: EtwEventReport,
     pub workload: WorkloadReport,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub service: Option<ServiceGateReport>,
     pub errors: Vec<DiagnosticError>,
     pub limitations: Vec<&'static str>,
 }

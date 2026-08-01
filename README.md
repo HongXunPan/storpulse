@@ -17,7 +17,7 @@ StorPulse 是面向 macOS、Windows 和后续 Linux 的本地只读磁盘 I/O �
 
 ## 开发入口
 
-开发环境、验证命令和停机条件见[工程代码技术选型](docs/工程代码技术选型.md)、[共享内核契约](docs/共享内核契约.md)、[macOS 实时纵切](docs/macOS实时纵切.md)、[低写入历史与导出](docs/低写入历史与导出.md)、[Windows 阶段 0 协作调试指南](docs/Windows阶段0协作调试指南.md)与[贡献指南](CONTRIBUTING.md)。
+开发环境、验证命令和停机条件见[工程代码技术选型](docs/工程代码技术选型.md)、[共享内核契约](docs/共享内核契约.md)、[macOS 实时纵切](docs/macOS实时纵切.md)、[低写入历史与导出](docs/低写入历史与导出.md)、[Windows 阶段 0 协作调试指南](docs/Windows阶段0协作调试指南.md)、[Windows 按需服务门禁指南](docs/Windows按需服务门禁指南.md)与[贡献指南](CONTRIBUTING.md)。
 
 ## 许可证
 

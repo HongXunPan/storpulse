@@ -1,12 +1,14 @@
 ﻿param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("Standard", "PerformanceLogUser", "Administrator")]
+    [ValidateSet("Standard", "PerformanceLogUser", "Administrator", "Service")]
     [string]$ExpectedMode,
 
     [ValidateRange(5, 300)]
     [int]$DurationSeconds = 15,
 
-    [switch]$NoPause
+    [switch]$NoPause,
+
+    [switch]$DisconnectAfterReady
 )
 
 Set-StrictMode -Version Latest
@@ -59,6 +61,11 @@ $EtwConsumerStarted = $null
 $EtwStartStatus = $null
 $WorkloadCompleted = $null
 $SequentialReadMode = $null
+$ServiceLocalSystem = $null
+$ServiceClientAuthenticated = $null
+$ServiceClientElevated = $null
+$ServiceStopped = $null
+$ServiceDisconnectCleanupTest = $null
 $CollectorStatus = "initializing"
 $FailureStage = "initialize"
 $FailureType = $null
@@ -99,6 +106,7 @@ try {
         "Administrator" { $ActualAdministrator }
         "PerformanceLogUser" { -not $ActualAdministrator -and $PerformanceLogUser -eq $true }
         "Standard" { -not $ActualAdministrator -and $PerformanceLogUser -eq $false }
+        "Service" { -not $ActualAdministrator }
     }
     $CollectorStatus = "not_started"
 
@@ -126,7 +134,9 @@ try {
         -OutputDirectory $RunDirectory `
         -DurationSeconds $DurationSeconds `
         -StandardOutputPath $StandardOutputPath `
-        -StandardErrorPath $StandardErrorPath
+        -StandardErrorPath $StandardErrorPath `
+        -ServiceMode:($ExpectedMode -eq "Service") `
+        -DisconnectAfterReady:$DisconnectAfterReady
     if (-not $ProbeRun.finished) {
         $CollectorStatus = "probe_timeout"
         $FailureStage = "probe_timeout"
@@ -157,6 +167,15 @@ try {
             $EtwStartStatus = [int]$ProbeSummary.etw.startStatus
             $WorkloadCompleted = [bool]$ProbeSummary.workload.completed
             $SequentialReadMode = $ProbeSummary.workload.sequentialReadMode
+            $ServiceProperty = $ProbeSummary.PSObject.Properties["service"]
+            if ($null -ne $ServiceProperty) {
+                $ServiceSummary = $ServiceProperty.Value
+                $ServiceLocalSystem = [bool]$ServiceSummary.serviceLocalSystem
+                $ServiceClientAuthenticated = [bool]$ServiceSummary.clientAuthenticated
+                $ServiceClientElevated = $ServiceSummary.clientElevated
+                $ServiceStopped = [bool]$ServiceSummary.serviceStopped
+                $ServiceDisconnectCleanupTest = [bool]$ServiceSummary.disconnectCleanupTest
+            }
             $CollectorStatus = "completed"
             $FailureStage = $null
         }
@@ -218,6 +237,11 @@ finally {
         etwStartStatus = $EtwStartStatus
         workloadCompleted = $WorkloadCompleted
         sequentialReadMode = $SequentialReadMode
+        serviceLocalSystem = $ServiceLocalSystem
+        serviceClientAuthenticated = $ServiceClientAuthenticated
+        serviceClientElevated = $ServiceClientElevated
+        serviceStopped = $ServiceStopped
+        serviceDisconnectCleanupTest = $ServiceDisconnectCleanupTest
         expectedMode = $ExpectedMode
         actualAdministrator = $ActualAdministrator
         performanceLogUser = $PerformanceLogUser

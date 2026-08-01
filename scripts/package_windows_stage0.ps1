@@ -38,10 +38,19 @@ Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-stage0/collect.ps1") -D
 Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-stage0/collect-environment.ps1") -Destination $ScriptsDirectory
 Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-stage0/invoke-probe.ps1") -Destination $ScriptsDirectory
 Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-stage0/launch-admin.ps1") -Destination $ScriptsDirectory
+Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-stage0/install-service.ps1") -Destination $ScriptsDirectory
+Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-stage0/uninstall-service.ps1") -Destination $ScriptsDirectory
+Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-stage0/launch-service-install.ps1") -Destination $ScriptsDirectory
+Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-stage0/launch-service-uninstall.ps1") -Destination $ScriptsDirectory
 Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-stage0/collect-standard.cmd") -Destination (Join-Path $PackageRoot "收集标准用户日志.cmd")
 Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-stage0/collect-performance-log-user.cmd") -Destination (Join-Path $PackageRoot "收集性能日志用户日志.cmd")
 Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-stage0/collect-admin.cmd") -Destination (Join-Path $PackageRoot "收集管理员日志.cmd")
+Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-stage0/install-service.cmd") -Destination (Join-Path $PackageRoot "安装按需服务门禁.cmd")
+Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-stage0/collect-service.cmd") -Destination (Join-Path $PackageRoot "收集按需服务门禁日志.cmd")
+Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-stage0/collect-service-disconnect.cmd") -Destination (Join-Path $PackageRoot "验证异常断开清理.cmd")
+Copy-Item -LiteralPath (Join-Path $Root "scripts/windows-stage0/uninstall-service.cmd") -Destination (Join-Path $PackageRoot "卸载按需服务门禁.cmd")
 Copy-Item -LiteralPath (Join-Path $Root "docs/Windows阶段0协作调试指南.md") -Destination $PackageRoot
+Copy-Item -LiteralPath (Join-Path $Root "docs/Windows按需服务门禁指南.md") -Destination $PackageRoot
 
 $ProbePath = Join-Path $PackageRoot "storpulse-windows-probe.exe"
 $ProbeHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $ProbePath).Hash.ToLowerInvariant()
@@ -52,6 +61,8 @@ $Manifest = [ordered]@{
     target = "x86_64-pc-windows-msvc"
     probeSha256 = $ProbeHash
     signed = $false
+    serviceName = "StorPulseStage0Collector"
+    serviceStartType = "demand"
     createdAtUtc = [DateTime]::UtcNow.ToString("o")
 }
 $Encoding = New-Object System.Text.UTF8Encoding($false)

@@ -59,7 +59,7 @@ pub struct TraceSession {
     session_name: Vec<u16>,
     properties: Box<TracePropertiesBuffer>,
     stats: Arc<Mutex<EventStats>>,
-    consumer: JoinHandle<ConsumerResult>,
+    consumer: Option<JoinHandle<ConsumerResult>>,
 }
 
 struct ConsumerResult {
@@ -69,10 +69,18 @@ struct ConsumerResult {
 
 impl TraceSession {
     pub fn start(probe_process_id: u32) -> Result<Self, NativeFailure> {
-        let session_name: Vec<u16> = format!("StorPulse.Stage0.{probe_process_id}")
-            .encode_utf16()
-            .chain(std::iter::once(0))
-            .collect();
+        Self::start_named(&format!("StorPulse.Stage0.{probe_process_id}"))
+    }
+
+    pub fn start_named(name: &str) -> Result<Self, NativeFailure> {
+        let session_name: Vec<u16> = name.encode_utf16().chain(std::iter::once(0)).collect();
+        if session_name.len() > 128 {
+            return Err(NativeFailure::new(
+                "etw",
+                "session_name_too_long",
+                windows_sys::Win32::Foundation::ERROR_INVALID_NAME,
+            ));
+        }
         let mut properties = Box::new(TracePropertiesBuffer::new(&session_name));
         let mut control_handle = CONTROLTRACE_HANDLE::default();
         // SAFETY：属性缓冲区包含结构体和 logger 名称，指针在会话生命周期内保持有效。
@@ -105,7 +113,7 @@ impl TraceSession {
                 session_name,
                 properties,
                 stats,
-                consumer,
+                consumer: Some(consumer),
             }),
             Ok(Err(code)) => {
                 stop_failed_session(control_handle, &session_name, &mut properties);
@@ -135,6 +143,15 @@ impl TraceSession {
         probe_process_id: u32,
         short_lived_processes: &[ProcessIdentity],
     ) -> EtwEventReport {
+        let completion = self.stop_session();
+        let mut stats = self
+            .stats
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        stats.finish(probe_process_id, short_lived_processes, completion)
+    }
+
+    fn stop_session(&mut self) -> SessionCompletion {
         // SAFETY：使用启动会话时的句柄、名称和属性缓冲区停止同一会话。
         let stop_status = unsafe {
             ControlTraceW(
@@ -144,11 +161,15 @@ impl TraceSession {
                 EVENT_TRACE_CONTROL_STOP,
             )
         };
-        let consumer = self.consumer.join().unwrap_or(ConsumerResult {
-            process_status: 1,
-            events_lost: 0,
-        });
-        let completion = SessionCompletion {
+        let consumer = self
+            .consumer
+            .take()
+            .and_then(|consumer| consumer.join().ok())
+            .unwrap_or(ConsumerResult {
+                process_status: 1,
+                events_lost: 0,
+            });
+        SessionCompletion {
             stop_status,
             process_status: consumer.process_status,
             events_lost: self
@@ -158,12 +179,15 @@ impl TraceSession {
                 .max(consumer.events_lost),
             log_buffers_lost: self.properties.properties.LogBuffersLost,
             realtime_buffers_lost: self.properties.properties.RealTimeBuffersLost,
-        };
-        let mut stats = self
-            .stats
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        stats.finish(probe_process_id, short_lived_processes, completion)
+        }
+    }
+}
+
+impl Drop for TraceSession {
+    fn drop(&mut self) {
+        if self.consumer.is_some() {
+            let _ = self.stop_session();
+        }
     }
 }
 

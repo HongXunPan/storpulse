@@ -11,7 +11,7 @@ GitHub Actions 会构建一个无需安装 Rust、Visual Studio 或 .NET 的 Win
 - 顺序读写、小文件和短命进程负载能否产生可解释的诊断证据；
 - 探针自身 CPU、内存和广义 I/O 增量是否可接受。
 
-它不是 StorPulse Windows 应用，也不能单独证明 Windows 阶段 0 已通过。GitHub 托管 runner 只完成编译、测试、结构化日志冒烟和打包；真实系统的权限、ETW 与负载仍需实机证据。2026-08-01 已完成 Windows 10 22H2 x64 候选权限对照，结论为标准用户门禁未通过；该诊断包继续用于复现差异和补充其他系统矩阵。
+它不是 StorPulse Windows 应用，也不能单独证明 Windows 阶段 0 已通过。GitHub 托管 runner 只完成编译、测试、结构化日志冒烟和打包；真实系统的权限、ETW 与负载仍需实机证据。2026-08-01 已完成 Windows 10 22H2 x64 候选权限对照，结论为标准用户门禁未通过；该诊断包继续用于复现差异和补充其他系统矩阵。包内另带一个独立的 Windows 10 LocalSystem 按需服务候选入口，只有进入该专项门禁时才按[Windows 按需服务门禁指南](Windows按需服务门禁指南.md)安装和运行。
 
 ## 2. 协作机器要求
 
@@ -33,8 +33,8 @@ Windows Server、早期 Windows 10 和 Windows 11 也可以返回探索性日志
    - `storpulse-windows-probe.exe`
    - `package-manifest.json`
    - `SHA256SUMS.txt`
-   - `scripts/collect.ps1`、`scripts/collect-environment.ps1`、`scripts/invoke-probe.ps1` 与 `scripts/launch-admin.ps1`
-   - 三个中文 `.cmd` 入口
+   - `scripts` 目录及其中的采集、安装和卸载脚本
+   - 三个权限对照入口，以及四个按需服务候选入口
 4. 诊断脚本会在运行前比较 EXE 的 SHA-256；不匹配时不会启动探针。
 
 当前诊断包未做发行签名，Windows SmartScreen 可能提示未知发布者。只应从项目对应 GitHub Actions 运行下载，不应从聊天附件或第三方网盘转发；正式签名不属于本阶段。

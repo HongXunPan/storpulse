@@ -1,15 +1,25 @@
-function Invoke-StorPulseProbe {
+﻿function Invoke-StorPulseProbe {
     param(
         [Parameter(Mandatory = $true)] [string]$ProbePath,
         [Parameter(Mandatory = $true)] [string]$OutputDirectory,
         [Parameter(Mandatory = $true)] [int]$DurationSeconds,
         [Parameter(Mandatory = $true)] [string]$StandardOutputPath,
-        [Parameter(Mandatory = $true)] [string]$StandardErrorPath
+        [Parameter(Mandatory = $true)] [string]$StandardErrorPath,
+        [switch]$ServiceMode,
+        [switch]$DisconnectAfterReady
     )
 
     $StartInfo = New-Object System.Diagnostics.ProcessStartInfo
     $StartInfo.FileName = $ProbePath
-    $StartInfo.Arguments = '--output "{0}" --duration-seconds {1}' -f $OutputDirectory, $DurationSeconds
+    $ProbeArguments = @()
+    if ($ServiceMode) {
+        $ProbeArguments += "--service-diagnostic"
+    }
+    $ProbeArguments += @('--output', ('"{0}"' -f $OutputDirectory), '--duration-seconds', $DurationSeconds)
+    if ($DisconnectAfterReady) {
+        $ProbeArguments += "--disconnect-after-ready"
+    }
+    $StartInfo.Arguments = $ProbeArguments -join " "
     $StartInfo.UseShellExecute = $false
     $StartInfo.CreateNoWindow = $true
     $StartInfo.RedirectStandardOutput = $true
@@ -27,7 +37,8 @@ function Invoke-StorPulseProbe {
         }
         $StandardOutputTask = $Process.StandardOutput.ReadToEndAsync()
         $StandardErrorTask = $Process.StandardError.ReadToEndAsync()
-        $Finished = $Process.WaitForExit(($DurationSeconds + 30) * 1000)
+        $TimeoutSeconds = if ($ServiceMode) { $DurationSeconds + 90 } else { $DurationSeconds + 30 }
+        $Finished = $Process.WaitForExit($TimeoutSeconds * 1000)
         if (-not $Finished) {
             $Process.Kill()
         }

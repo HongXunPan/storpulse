@@ -20,7 +20,8 @@ use crate::model::{NativeIoCounters, ProcessMeasurements, ProcessScanReport};
 
 use super::NativeFailure;
 
-#[derive(Clone)]
+#[derive(Clone, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct ProcessIdentity {
     pub(super) process_id: u32,
     pub(super) start_time_ticks: u64,

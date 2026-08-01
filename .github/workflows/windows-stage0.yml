@@ -12,6 +12,8 @@ on:
       - "scripts/package_windows_stage0.ps1"
       - "scripts/validate_stage0_windows.ps1"
       - "scripts/validate_stage0_windows_package.ps1"
+      - "docs/Windows阶段0协作调试指南.md"
+      - "docs/Windows按需服务门禁指南.md"
       - ".github/workflows/windows-stage0.yml"
   push:
     branches: [main]
@@ -24,6 +26,8 @@ on:
       - "scripts/package_windows_stage0.ps1"
       - "scripts/validate_stage0_windows.ps1"
       - "scripts/validate_stage0_windows_package.ps1"
+      - "docs/Windows阶段0协作调试指南.md"
+      - "docs/Windows按需服务门禁指南.md"
       - ".github/workflows/windows-stage0.yml"
 
 permissions:
