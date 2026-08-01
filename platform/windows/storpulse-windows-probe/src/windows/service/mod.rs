@@ -1,5 +1,6 @@
 mod auth;
 mod client;
+mod failure_delivery;
 mod identity;
 mod protocol;
 mod runtime;
@@ -41,6 +42,15 @@ impl ServiceFailure {
         Self::new(error.phase, error.api, error.code)
     }
 
+    fn from_remote(phase: &str, api: &str, code: u32) -> Self {
+        if phase == "ipc"
+            && let Some(api) = trusted_remote_api(api)
+        {
+            return Self::new("ipc", api, code);
+        }
+        Self::new("service_runtime", "remote_service_failure", code)
+    }
+
     fn safe_message(&self) -> String {
         format!("{}：{} ({})", self.phase, self.api, self.code)
     }
@@ -57,5 +67,57 @@ impl ServiceFailure {
                 _ => "native_error",
             },
         }
+    }
+}
+
+const TRUSTED_REMOTE_APIS: &[&str] = &[
+    "serde_json.serialize.response",
+    "serde_json.deserialize.response.trailing",
+    "serde_json.deserialize.response.io",
+    "serde_json.deserialize.response.syntax",
+    "serde_json.deserialize.response.eof",
+    "serde_json.deserialize.response.data",
+    "serde_json.deserialize.response.root",
+    "serde_json.deserialize.response.missing_status",
+    "serde_json.deserialize.response.unknown_status",
+    "serde_json.deserialize.response.completed.missing_etw",
+    "serde_json.deserialize.response.completed.missing_service",
+    "serde_json.deserialize.response.completed.etw_shape",
+    "serde_json.deserialize.response.completed.etw.events_by_opcode",
+    "serde_json.deserialize.response.completed.etw.top_processes",
+    "serde_json.deserialize.response.completed.etw.scalar",
+    "serde_json.deserialize.response.completed.service_shape",
+    "serde_json.deserialize.response.completed.service.self_measurements",
+    "serde_json.deserialize.response.completed.service.scalar",
+    "serde_json.deserialize.response.completed.wrapper",
+];
+
+fn trusted_remote_api(api: &str) -> Option<&'static str> {
+    TRUSTED_REMOTE_APIS
+        .iter()
+        .copied()
+        .find(|trusted| *trusted == api)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn remote_failure_only_accepts_known_ipc_diagnostics() {
+        let trusted = ServiceFailure::from_remote(
+            "ipc",
+            "serde_json.deserialize.response.completed.etw.events_by_opcode",
+            13,
+        );
+        assert_eq!(trusted.phase, "ipc");
+        assert_eq!(
+            trusted.api,
+            "serde_json.deserialize.response.completed.etw.events_by_opcode"
+        );
+
+        let untrusted = ServiceFailure::from_remote("ipc", "untrusted.payload", 13);
+        assert_eq!(untrusted.phase, "service_runtime");
+        assert_eq!(untrusted.api, "remote_service_failure");
     }
 }

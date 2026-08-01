@@ -13,6 +13,7 @@ use windows_sys::Win32::System::Services::{
 use crate::model::ServiceGateReport;
 
 use super::super::{calculate_self_measurements, etw, process};
+use super::failure_delivery::send_failure;
 use super::identity::{current_process_is_local_system, inspect_pipe_client};
 use super::protocol::{SCHEMA_VERSION, ServiceRequest, ServiceResponse};
 use super::transport::Pipe;
@@ -117,7 +118,7 @@ fn run_service(expected_nonce: String) -> Result<(), ServiceFailure> {
                 },
                 87,
             );
-            send_failure(&pipe, &error);
+            send_failure(&pipe, &error, &STOP_REQUESTED);
             return Err(error);
         }
     };
@@ -129,7 +130,7 @@ fn run_service(expected_nonce: String) -> Result<(), ServiceFailure> {
         && client.elevated == Some(false);
     if !authenticated {
         let error = ServiceFailure::new("authentication", "client_rejected", 5);
-        send_failure(&pipe, &error);
+        send_failure(&pipe, &error, &STOP_REQUESTED);
         return Err(error);
     }
 
@@ -141,7 +142,7 @@ fn run_service(expected_nonce: String) -> Result<(), ServiceFailure> {
         Ok(session) => session,
         Err(error) => {
             let failure = ServiceFailure::from_native(error);
-            send_failure(&pipe, &failure);
+            send_failure(&pipe, &failure, &STOP_REQUESTED);
             return Err(failure);
         }
     };
@@ -174,7 +175,7 @@ fn run_service(expected_nonce: String) -> Result<(), ServiceFailure> {
                 },
                 87,
             );
-            send_failure(&pipe, &error);
+            send_failure(&pipe, &error, &STOP_REQUESTED);
             None
         }
         Err(_) => None,
@@ -209,7 +210,10 @@ fn run_service(expected_nonce: String) -> Result<(), ServiceFailure> {
         etw: Box::new(etw_report),
         service,
     };
-    completed.validate_round_trip()?;
+    if let Err(error) = completed.validate_round_trip() {
+        send_failure(&pipe, &error, &STOP_REQUESTED);
+        return Err(error);
+    }
     pipe.write_message(&completed)?;
 
     let acknowledgement_payload = pipe.read_payload_until(
@@ -265,15 +269,6 @@ unsafe fn wide_pointer_to_string(pointer: *const u16) -> String {
     }
     // SAFETY：前面的扫描已经确定有效 UTF-16 单元范围。
     String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(pointer, length) })
-}
-
-fn send_failure(pipe: &Pipe, error: &ServiceFailure) {
-    let _ = pipe.write_message(&ServiceResponse::Failed {
-        schema_version: SCHEMA_VERSION,
-        phase: error.phase.to_string(),
-        api: error.api.to_string(),
-        code: error.code,
-    });
 }
 
 fn set_status(state: u32, exit_code: u32, service_exit_code: u32, wait_hint: u32) {

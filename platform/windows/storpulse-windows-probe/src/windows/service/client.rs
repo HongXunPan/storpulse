@@ -169,12 +169,10 @@ fn capture_from_service(
             client_process_id_matched,
             client_elevated,
         },
-        ServiceResponse::Failed { code, .. } => {
-            return Err(ServiceFailure::new(
-                "service_runtime",
-                "remote_service_failure",
-                code,
-            ));
+        ServiceResponse::Failed {
+            phase, api, code, ..
+        } => {
+            return Err(acknowledge_remote_failure(&pipe, &phase, &api, code));
         }
         ServiceResponse::Completed { .. } => {
             return Err(ServiceFailure::new(
@@ -239,12 +237,10 @@ fn capture_from_service(
     let completed = ServiceResponse::decode(&completed_payload)?;
     let (etw, mut service) = match completed {
         ServiceResponse::Completed { etw, service, .. } => (*etw, service),
-        ServiceResponse::Failed { code, .. } => {
-            return Err(ServiceFailure::new(
-                "service_runtime",
-                "remote_service_failure",
-                code,
-            ));
+        ServiceResponse::Failed {
+            phase, api, code, ..
+        } => {
+            return Err(acknowledge_remote_failure(&pipe, &phase, &api, code));
         }
         ServiceResponse::Ready { .. } => {
             return Err(ServiceFailure::new(
@@ -274,6 +270,14 @@ fn capture_from_service(
         workload,
         service: Some(service),
     })
+}
+
+fn acknowledge_remote_failure(pipe: &Pipe, phase: &str, api: &str, code: u32) -> ServiceFailure {
+    let failure = ServiceFailure::from_remote(phase, api, code);
+    let _ = pipe.write_message(&ServiceRequest::Acknowledge {
+        schema_version: SCHEMA_VERSION,
+    });
+    failure
 }
 
 #[derive(Default)]
