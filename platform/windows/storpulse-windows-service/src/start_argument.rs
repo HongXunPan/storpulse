@@ -20,10 +20,11 @@ pub(crate) fn parse_service_arguments(arguments: &[String]) -> Result<String, St
 #[cfg(test)]
 mod tests {
     use super::*;
+    use storpulse_windows_service_contract::PRODUCT_SERVICE_NAME;
 
     #[test]
     fn accepts_exactly_one_fixed_length_nonce() {
-        let arguments = vec!["StorPulseCollector".to_owned(), "ab".repeat(32)];
+        let arguments = vec![PRODUCT_SERVICE_NAME.to_owned(), "ab".repeat(32)];
 
         assert_eq!(
             parse_service_arguments(&arguments).unwrap(),
@@ -34,12 +35,12 @@ mod tests {
     #[test]
     fn rejects_missing_extra_and_unsafe_arguments() {
         assert_eq!(
-            parse_service_arguments(&["StorPulseCollector".to_owned()]),
+            parse_service_arguments(&[PRODUCT_SERVICE_NAME.to_owned()]),
             Err(StartArgumentError::InvalidArgumentCount)
         );
         assert_eq!(
             parse_service_arguments(&[
-                "StorPulseCollector".to_owned(),
+                PRODUCT_SERVICE_NAME.to_owned(),
                 "ab".repeat(32),
                 "unexpected".to_owned(),
             ]),
@@ -47,7 +48,7 @@ mod tests {
         );
         assert_eq!(
             parse_service_arguments(&[
-                "StorPulseCollector".to_owned(),
+                PRODUCT_SERVICE_NAME.to_owned(),
                 "../not-a-nonce".to_owned(),
             ]),
             Err(StartArgumentError::InvalidNonce)

@@ -57,6 +57,38 @@ collector_text = (root / "scripts" / "windows-stage0" / "collect.ps1").read_text
 )
 if 'storpulse-diagnostics-{0}-{1}.zip' not in collector_text:
     raise SystemExit("Windows 诊断 ZIP 文件名没有包含脚本阶段")
+
+preview_entries = {
+    "validate-continuous.cmd": "windows-stage1-continuous-validation",
+    "collect-disconnect.cmd": "windows-stage1-disconnect-cleanup",
+}
+for filename, stage in preview_entries.items():
+    text = (root / "scripts" / "windows-preview" / filename).read_text(encoding="utf-8-sig")
+    if f"-StageName {stage}" not in text or "pause" not in text.splitlines():
+        raise SystemExit(f"Windows 持续采集入口不完整：{filename} -> {stage}")
+
+preview_collector = (root / "scripts" / "windows-preview" / "collect.ps1").read_text(
+    encoding="utf-8-sig"
+)
+if (
+    'storpulse-diagnostics-{0}-{1}.zip' not in preview_collector
+    or "Test-DiagnosticArchivePrivacy" not in preview_collector
+    or "standard_user_required" not in preview_collector
+    or "unexpected_diagnostic_content" not in preview_collector
+):
+    raise SystemExit("Windows 持续采集入口缺少阶段命名、标准用户或归档白名单门禁")
+
+preview_installer = (
+    root / "scripts" / "windows-preview" / "install-service.ps1"
+).read_text(encoding="utf-8-sig")
+if "New-Service @ServiceParameters" not in preview_installer or '"create", $ServiceName' in preview_installer:
+    raise SystemExit("Windows 持续采集安装脚本没有使用 PowerShell 原生服务入口")
+
+preview_packager = (root / "scripts" / "package_windows_preview.ps1").read_text(
+    encoding="utf-8-sig"
+)
+if "https://github.com/HongXunPan/storpulse/issues/new" not in preview_packager:
+    raise SystemExit("Windows 持续采集包缺少显式反馈渠道")
 print("Windows 诊断 ZIP 阶段命名校验通过")
 PY
 
@@ -95,6 +127,7 @@ if [[ -f "${BUDGET_SCRIPT}" ]]; then
     "${ROOT_DIR}/README.md"
     "${ROOT_DIR}/CONTRIBUTING.md"
     "${ROOT_DIR}/docs"
+    "${ROOT_DIR}/scripts"
     "${ROOT_DIR}/platform/macos/Package.swift"
     "${ROOT_DIR}/platform/macos/Sources"
     "${ROOT_DIR}/platform/macos/Tests"

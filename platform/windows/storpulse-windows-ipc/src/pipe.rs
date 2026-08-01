@@ -19,7 +19,7 @@ use windows_sys::Win32::System::Pipes::{
     PIPE_REJECT_REMOTE_CLIENTS, PeekNamedPipe, SetNamedPipeHandleState, WaitNamedPipeW,
 };
 
-use super::pipe_support::{PipeError, SecurityDescriptor, check_wait, wide};
+use crate::pipe_support::{PipeError, SecurityDescriptor, check_wait, wide};
 
 pub const PRODUCT_PIPE_NAME: &str = r"\\.\pipe\StorPulse.Collector.v1";
 const PIPE_BUFFER_BYTES: u32 = 65_536;
@@ -131,11 +131,11 @@ impl ProductPipe {
         }
     }
 
-    pub(super) fn handle(&self) -> HANDLE {
+    pub fn handle(&self) -> HANDLE {
         self.handle
     }
 
-    pub(super) fn data_available(&self) -> Result<bool, PipeError> {
+    pub fn data_available(&self) -> Result<bool, PipeError> {
         let mut available = 0;
         // SAFETY：句柄有效；PeekNamedPipe 不消费数据，只返回当前可读字节数。
         if unsafe {

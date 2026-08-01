@@ -7,9 +7,16 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - "crates/**"
+      - "platform/windows/storpulse-windows-client/**"
+      - "platform/windows/storpulse-windows-ipc/**"
       - "platform/windows/storpulse-windows-service/**"
       - "platform/windows/storpulse-windows-service-contract/**"
       - "platform/windows/storpulse-windows-service-runtime/**"
+      - "scripts/windows-preview/**"
+      - "scripts/package_windows_preview.ps1"
+      - "scripts/validate_windows_preview_package.ps1"
+      - "docs/Windows持续采集实机验证指南.md"
+      - "docs/Windows持续采集与诊断契约.md"
       - ".github/workflows/windows-preview.yml"
   push:
     branches: [main]
@@ -17,9 +24,16 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - "crates/**"
+      - "platform/windows/storpulse-windows-client/**"
+      - "platform/windows/storpulse-windows-ipc/**"
       - "platform/windows/storpulse-windows-service/**"
       - "platform/windows/storpulse-windows-service-contract/**"
       - "platform/windows/storpulse-windows-service-runtime/**"
+      - "scripts/windows-preview/**"
+      - "scripts/package_windows_preview.ps1"
+      - "scripts/validate_windows_preview_package.ps1"
+      - "docs/Windows持续采集实机验证指南.md"
+      - "docs/Windows持续采集与诊断契约.md"
       - ".github/workflows/windows-preview.yml"
 
 permissions:
@@ -27,7 +41,7 @@ permissions:
 
 jobs:
   build-service:
-    name: 构建 Windows x64 产品服务
+    name: 构建 Windows x64 持续采集测试包
     runs-on: windows-2025
     timeout-minutes: 30
     env:
@@ -53,6 +67,8 @@ jobs:
           cargo check --locked --workspace --all-targets --target x86_64-pc-windows-msvc
           cargo test --locked --workspace --target x86_64-pc-windows-msvc
           cargo clippy --locked `
+            --package storpulse-windows-client `
+            --package storpulse-windows-ipc `
             --package storpulse-windows-service-contract `
             --package storpulse-windows-service-runtime `
             --package storpulse-windows-service `
@@ -60,30 +76,32 @@ jobs:
             --target x86_64-pc-windows-msvc `
             -- -D warnings
 
-      - name: 构建产品服务
+      - name: 构建产品服务与标准用户客户端
         shell: pwsh
-        run: cargo build --locked --release --package storpulse-windows-service --target x86_64-pc-windows-msvc
+        run: |
+          cargo build --locked --release `
+            --package storpulse-windows-service `
+            --package storpulse-windows-client `
+            --target x86_64-pc-windows-msvc
 
-      - name: 整理开发者预览产物
+      - name: 生成并校验持续采集实机测试包
         shell: pwsh
         run: |
           $CargoMetadata = cargo metadata --locked --no-deps --format-version 1 | ConvertFrom-Json
           $ReleaseDirectory = Join-Path ([string]$CargoMetadata.target_directory) "x86_64-pc-windows-msvc/release"
-          $OutputDirectory = ".codex-tmp/windows-preview-service"
-          New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
-          $Binary = Join-Path $ReleaseDirectory "storpulse-windows-service.exe"
-          if (-not (Test-Path -LiteralPath $Binary -PathType Leaf)) {
-            throw "未找到 Windows 产品服务 EXE"
-          }
-          Copy-Item -LiteralPath $Binary -Destination $OutputDirectory
-          $Hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $Binary).Hash
-          "$Hash *storpulse-windows-service.exe" |
-            Set-Content -LiteralPath (Join-Path $OutputDirectory "SHA256SUMS.txt") -Encoding ascii
+          $OutputDirectory = ".codex-tmp/windows-preview-package"
+          & ./scripts/package_windows_preview.ps1 `
+            -ServiceBinaryPath (Join-Path $ReleaseDirectory "storpulse-windows-service.exe") `
+            -ClientBinaryPath (Join-Path $ReleaseDirectory "storpulse-windows-client.exe") `
+            -OutputDirectory $OutputDirectory `
+            -CommitSha "${{ github.sha }}"
+          & ./scripts/validate_windows_preview_package.ps1 `
+            -PackageRoot (Join-Path $OutputDirectory "storpulse-windows-stage1-x64")
 
-      - name: 上传 Windows 产品服务
+      - name: 上传 Windows 持续采集实机测试包
         uses: actions/upload-artifact@v7
         with:
-          name: storpulse-windows-service-x64-${{ github.sha }}
-          path: .codex-tmp/windows-preview-service
+          name: storpulse-windows-stage1-x64-${{ github.sha }}
+          path: .codex-tmp/windows-preview-package/storpulse-windows-stage1-x64
           if-no-files-found: error
           retention-days: 14

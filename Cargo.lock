@@ -93,6 +93,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "storpulse-windows-client"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "storpulse-core",
+ "storpulse-windows-ipc",
+ "storpulse-windows-service-contract",
+ "windows-sys",
+]
+
+[[package]]
+name = "storpulse-windows-ipc"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "storpulse-windows-service-contract",
+ "windows-sys",
+]
+
+[[package]]
 name = "storpulse-windows-probe"
 version = "0.1.0"
 dependencies = [
@@ -105,6 +126,7 @@ dependencies = [
 name = "storpulse-windows-service"
 version = "0.1.0"
 dependencies = [
+ "storpulse-windows-service-contract",
  "storpulse-windows-service-runtime",
  "windows-sys",
 ]
@@ -122,9 +144,9 @@ dependencies = [
 name = "storpulse-windows-service-runtime"
 version = "0.1.0"
 dependencies = [
- "serde",
  "serde_json",
  "storpulse-core",
+ "storpulse-windows-ipc",
  "storpulse-windows-service-contract",
  "windows-sys",
 ]

@@ -1,5 +1,5 @@
 [package]
-name = "storpulse-windows-service"
+name = "storpulse-windows-client"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,11 +8,18 @@ repository.workspace = true
 publish = false
 
 [dependencies]
+serde.workspace = true
+serde_json.workspace = true
+storpulse-core.workspace = true
 storpulse-windows-service-contract = { path = "../storpulse-windows-service-contract" }
 
 [target.'cfg(windows)'.dependencies]
-storpulse-windows-service-runtime = { path = "../storpulse-windows-service-runtime" }
+storpulse-windows-ipc = { path = "../storpulse-windows-ipc" }
 windows-sys = { workspace = true, features = [
   "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Security_Cryptography",
+  "Win32_Storage_FileSystem",
   "Win32_System_Services",
+  "Win32_System_Threading",
 ] }

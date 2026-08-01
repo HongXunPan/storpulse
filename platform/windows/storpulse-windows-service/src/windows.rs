@@ -1,6 +1,7 @@
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
 
+use storpulse_windows_service_contract::PRODUCT_SERVICE_NAME;
 use storpulse_windows_service_runtime::windows::{ServiceRunError, run_single_session_with_ready};
 use windows_sys::Win32::Foundation::{
     ERROR_CALL_NOT_IMPLEMENTED, ERROR_INVALID_PARAMETER, ERROR_SERVICE_SPECIFIC_ERROR,
@@ -16,7 +17,6 @@ use windows_sys::Win32::System::Services::{
 
 use crate::start_argument::parse_service_arguments;
 
-pub(crate) const SERVICE_NAME: &str = "StorPulseCollector";
 const START_WAIT_HINT_MILLISECONDS: u32 = 15_000;
 const STOP_WAIT_HINT_MILLISECONDS: u32 = 5_000;
 const MAX_SERVICE_ARGUMENTS: u32 = 8;
@@ -26,7 +26,7 @@ static STOP_REQUESTED: AtomicBool = AtomicBool::new(false);
 static STATUS_HANDLE: AtomicPtr<c_void> = AtomicPtr::new(std::ptr::null_mut());
 
 pub(crate) fn run_dispatcher() -> Result<(), u32> {
-    let mut service_name = wide(SERVICE_NAME);
+    let mut service_name = wide(PRODUCT_SERVICE_NAME);
     let table = [
         SERVICE_TABLE_ENTRYW {
             lpServiceName: service_name.as_mut_ptr(),
@@ -43,7 +43,7 @@ pub(crate) fn run_dispatcher() -> Result<(), u32> {
 
 unsafe extern "system" fn service_main(argument_count: u32, arguments: *mut *mut u16) {
     STOP_REQUESTED.store(false, Ordering::Release);
-    let service_name = wide(SERVICE_NAME);
+    let service_name = wide(PRODUCT_SERVICE_NAME);
     // SAFETY：SCM 在 ServiceMain 生命周期内提供有效服务名和回调入口。
     let handle = unsafe {
         RegisterServiceCtrlHandlerExW(
