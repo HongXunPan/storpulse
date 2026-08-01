@@ -206,7 +206,26 @@ fn run_service(expected_nonce: String) -> Result<(), ServiceFailure> {
         schema_version: SCHEMA_VERSION,
         etw: Box::new(etw_report),
         service,
-    })
+    })?;
+
+    let acknowledgement = pipe.read_message_until::<ServiceRequest>(
+        Instant::now() + Duration::from_secs(10),
+        Some(&STOP_REQUESTED),
+    )?;
+    match acknowledgement {
+        ServiceRequest::Acknowledge { schema_version } if schema_version == SCHEMA_VERSION => {
+            Ok(())
+        }
+        request => Err(ServiceFailure::new(
+            "protocol",
+            if request.schema_version() == SCHEMA_VERSION {
+                "invalid_completion_acknowledgement"
+            } else {
+                "unsupported_schema"
+            },
+            87,
+        )),
+    }
 }
 
 fn service_nonce(argument_count: u32, arguments: *mut *mut u16) -> Result<String, ServiceFailure> {

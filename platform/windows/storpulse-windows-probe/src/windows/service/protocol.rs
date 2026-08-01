@@ -19,6 +19,9 @@ pub(super) enum ServiceRequest {
         schema_version: u32,
         short_lived_processes: Vec<ProcessIdentity>,
     },
+    Acknowledge {
+        schema_version: u32,
+    },
 }
 
 #[derive(Deserialize, Serialize)]
@@ -47,9 +50,9 @@ pub(super) enum ServiceResponse {
 impl ServiceRequest {
     pub(super) fn schema_version(&self) -> u32 {
         match self {
-            Self::Begin { schema_version, .. } | Self::Finish { schema_version, .. } => {
-                *schema_version
-            }
+            Self::Begin { schema_version, .. }
+            | Self::Finish { schema_version, .. }
+            | Self::Acknowledge { schema_version } => *schema_version,
         }
     }
 }
@@ -80,6 +83,18 @@ mod tests {
         let decoded: ServiceRequest = serde_json::from_str(&encoded).expect("协议应可解码");
 
         assert!(encoded.contains("\"command\":\"begin\""));
+        assert_eq!(decoded.schema_version(), SCHEMA_VERSION);
+    }
+
+    #[test]
+    fn acknowledgement_has_stable_tag_and_version() {
+        let request = ServiceRequest::Acknowledge {
+            schema_version: SCHEMA_VERSION,
+        };
+        let encoded = serde_json::to_string(&request).expect("协议应可编码");
+        let decoded: ServiceRequest = serde_json::from_str(&encoded).expect("协议应可解码");
+
+        assert!(encoded.contains("\"command\":\"acknowledge\""));
         assert_eq!(decoded.schema_version(), SCHEMA_VERSION);
     }
 }

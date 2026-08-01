@@ -253,6 +253,17 @@ fn capture_from_service(
             ));
         }
     };
+    pipe.write_message(&ServiceRequest::Acknowledge {
+        schema_version: SCHEMA_VERSION,
+    })?;
+    push_timeline(
+        timeline,
+        started,
+        "info",
+        "service_ipc",
+        "completion_acknowledged",
+        None,
+    );
     drop(pipe);
     service.service_stopped = scm::wait_until_stopped(Instant::now() + Duration::from_secs(30))?;
     drop(handles);
