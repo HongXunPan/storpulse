@@ -7,3 +7,7 @@ target/
 DerivedData/
 *.xcuserstate
 xcuserdata/
+.vs/
+platform/windows/storpulse-windows-app/bin/
+platform/windows/storpulse-windows-app/obj/
+*.csproj.user

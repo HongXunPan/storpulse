@@ -1,0 +1,209 @@
+<Window
+    x:Class="StorPulse.Windows.App.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:models="using:StorPulse.Windows.App.Models"
+    mc:Ignorable="d">
+
+    <Grid
+        MinWidth="1050"
+        Padding="24"
+        Background="{ThemeResource ApplicationPageBackgroundThemeBrush}"
+        RowSpacing="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Grid ColumnSpacing="16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Spacing="4">
+                <TextBlock
+                    FontSize="28"
+                    FontWeight="SemiBold"
+                    Text="StorPulse Windows" />
+                <TextBlock
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Text="阶段 2A · WinUI 3 高密度列表与局部刷新门禁" />
+            </StackPanel>
+            <StackPanel
+                Grid.Column="1"
+                HorizontalAlignment="Right"
+                Spacing="4">
+                <TextBlock
+                    HorizontalAlignment="Right"
+                    FontWeight="SemiBold"
+                    Text="{x:Bind ViewModel.RowCountText}" />
+                <TextBlock
+                    HorizontalAlignment="Right"
+                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                    Text="{x:Bind ViewModel.SortText, Mode=OneWay}" />
+            </StackPanel>
+        </Grid>
+
+        <InfoBar
+            Grid.Row="1"
+            IsClosable="False"
+            IsOpen="True"
+            Message="当前仅使用确定性内存数据验证 WinUI；没有连接服务、读取磁盘指标、写入日志或声明 Windows 平台已支持。"
+            Severity="Informational"
+            Title="界面门禁数据" />
+
+        <!-- 列头按钮只在用户点击时排序，周期刷新仅更新固定小批量行。 -->
+        <Grid
+            Grid.Row="2"
+            MinWidth="1000"
+            Padding="12,0"
+            ColumnSpacing="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="260" />
+                <ColumnDefinition Width="150" />
+                <ColumnDefinition Width="140" />
+                <ColumnDefinition Width="140" />
+                <ColumnDefinition Width="220" />
+                <ColumnDefinition Width="100" />
+            </Grid.ColumnDefinitions>
+            <Button
+                AutomationProperties.Name="按应用名称排序"
+                Background="Transparent"
+                BorderThickness="0"
+                Click="SortName_Click"
+                Content="应用"
+                FontWeight="SemiBold"
+                HorizontalContentAlignment="Left" />
+            <TextBlock
+                Grid.Column="1"
+                VerticalAlignment="Center"
+                FontWeight="SemiBold"
+                Text="进程"
+                TextAlignment="Left" />
+            <Button
+                Grid.Column="2"
+                AutomationProperties.Name="按当前读取速率排序"
+                Background="Transparent"
+                BorderThickness="0"
+                Click="SortRead_Click"
+                Content="当前读取"
+                FontWeight="SemiBold"
+                HorizontalContentAlignment="Right" />
+            <Button
+                Grid.Column="3"
+                AutomationProperties.Name="按当前写入速率排序"
+                Background="Transparent"
+                BorderThickness="0"
+                Click="SortWrite_Click"
+                Content="当前写入"
+                FontWeight="SemiBold"
+                HorizontalContentAlignment="Right" />
+            <Button
+                Grid.Column="4"
+                AutomationProperties.Name="按本次累计读写排序"
+                Background="Transparent"
+                BorderThickness="0"
+                Click="SortTotal_Click"
+                Content="本次累计"
+                FontWeight="SemiBold"
+                HorizontalContentAlignment="Right" />
+            <TextBlock
+                Grid.Column="5"
+                VerticalAlignment="Center"
+                FontWeight="SemiBold"
+                Text="持续时间"
+                TextAlignment="Right" />
+        </Grid>
+
+        <ListView
+            x:Name="ApplicationList"
+            Grid.Row="3"
+            AutomationProperties.Name="WinUI 高密度应用列表"
+            IsItemClickEnabled="False"
+            ItemsSource="{x:Bind ViewModel.Rows}"
+            SelectedItem="{x:Bind ViewModel.SelectedRow, Mode=TwoWay}"
+            SelectionMode="Single">
+            <ListView.ItemContainerStyle>
+                <Style TargetType="ListViewItem">
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    <Setter Property="MinHeight" Value="38" />
+                    <Setter Property="Padding" Value="0" />
+                </Style>
+            </ListView.ItemContainerStyle>
+            <ListView.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <ItemsStackPanel Orientation="Vertical" />
+                </ItemsPanelTemplate>
+            </ListView.ItemsPanel>
+            <ListView.ItemTemplate>
+                <DataTemplate x:DataType="models:RealtimeApplicationRow">
+                    <Grid
+                        MinWidth="1000"
+                        Padding="12,4"
+                        ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="260" />
+                            <ColumnDefinition Width="150" />
+                            <ColumnDefinition Width="140" />
+                            <ColumnDefinition Width="140" />
+                            <ColumnDefinition Width="220" />
+                            <ColumnDefinition Width="100" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            Text="{x:Bind DisplayName}"
+                            TextTrimming="CharacterEllipsis" />
+                        <TextBlock
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Text="{x:Bind ProcessSummary}"
+                            TextTrimming="CharacterEllipsis" />
+                        <TextBlock
+                            Grid.Column="2"
+                            VerticalAlignment="Center"
+                            Text="{x:Bind ReadRateText, Mode=OneWay}"
+                            TextAlignment="Right" />
+                        <TextBlock
+                            Grid.Column="3"
+                            VerticalAlignment="Center"
+                            Text="{x:Bind WriteRateText, Mode=OneWay}"
+                            TextAlignment="Right" />
+                        <TextBlock
+                            Grid.Column="4"
+                            VerticalAlignment="Center"
+                            Text="{x:Bind TotalText, Mode=OneWay}"
+                            TextAlignment="Right"
+                            TextTrimming="CharacterEllipsis" />
+                        <TextBlock
+                            Grid.Column="5"
+                            VerticalAlignment="Center"
+                            Text="{x:Bind DurationText, Mode=OneWay}"
+                            TextAlignment="Right" />
+                    </Grid>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+
+        <Grid Grid.Row="4" ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock
+                VerticalAlignment="Center"
+                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                Text="{x:Bind ViewModel.StatusText, Mode=OneWay}" />
+            <TextBlock
+                Grid.Column="1"
+                VerticalAlignment="Center"
+                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                Text="关闭窗口将结束本阶段门禁；托盘生命周期在阶段 2B 实现。" />
+        </Grid>
+    </Grid>
+</Window>

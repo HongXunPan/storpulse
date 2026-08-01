@@ -6,7 +6,9 @@ on:
     paths:
       - "Cargo.toml"
       - "Cargo.lock"
+      - "global.json"
       - "crates/**"
+      - "platform/windows/storpulse-windows-app/**"
       - "platform/windows/storpulse-windows-client/**"
       - "platform/windows/storpulse-windows-diagnostics/**"
       - "platform/windows/storpulse-windows-ipc/**"
@@ -14,17 +16,21 @@ on:
       - "platform/windows/storpulse-windows-service-contract/**"
       - "platform/windows/storpulse-windows-service-runtime/**"
       - "scripts/windows-preview/**"
+      - "scripts/windows-shell-gate/**"
       - "scripts/package_windows_preview.ps1"
       - "scripts/validate_windows_preview_package.ps1"
       - "docs/Windows持续采集实机验证指南.md"
       - "docs/Windows持续采集与诊断契约.md"
+      - "docs/WindowsWinUI最小壳层实机指南.md"
       - ".github/workflows/windows-preview.yml"
   push:
     branches: [main]
     paths:
       - "Cargo.toml"
       - "Cargo.lock"
+      - "global.json"
       - "crates/**"
+      - "platform/windows/storpulse-windows-app/**"
       - "platform/windows/storpulse-windows-client/**"
       - "platform/windows/storpulse-windows-diagnostics/**"
       - "platform/windows/storpulse-windows-ipc/**"
@@ -32,10 +38,12 @@ on:
       - "platform/windows/storpulse-windows-service-contract/**"
       - "platform/windows/storpulse-windows-service-runtime/**"
       - "scripts/windows-preview/**"
+      - "scripts/windows-shell-gate/**"
       - "scripts/package_windows_preview.ps1"
       - "scripts/validate_windows_preview_package.ps1"
       - "docs/Windows持续采集实机验证指南.md"
       - "docs/Windows持续采集与诊断契约.md"
+      - "docs/WindowsWinUI最小壳层实机指南.md"
       - ".github/workflows/windows-preview.yml"
 
 permissions:
@@ -49,11 +57,19 @@ jobs:
     env:
       CARGO_TERM_COLOR: always
       CARGO_PROFILE_RELEASE_DEBUG: "1"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+      NUGET_PACKAGES: ${{ github.workspace }}/.codex-tmp/nuget
       RUSTFLAGS: "-C target-feature=+crt-static"
 
     steps:
       - name: 检出源码
         uses: actions/checkout@v7
+
+      - name: 安装固定 .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
 
       - name: 安装固定 Rust 工具链
         shell: pwsh
@@ -106,5 +122,35 @@ jobs:
         with:
           name: storpulse-windows-stage1-x64-${{ github.sha }}
           path: .codex-tmp/windows-preview-package/storpulse-windows-stage1-x64
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: 构建 WinUI 3 阶段 2A 自包含壳层
+        shell: pwsh
+        run: |
+          $Project = "platform/windows/storpulse-windows-app/StorPulse.Windows.App.csproj"
+          $OutputDirectory = ".codex-tmp/windows-shell-gate-x64"
+          dotnet restore $Project -p:Platform=x64
+          dotnet publish $Project `
+            --configuration Release `
+            --runtime win-x64 `
+            --self-contained true `
+            --no-restore `
+            --output $OutputDirectory `
+            -p:Platform=x64
+          $Executable = Join-Path $OutputDirectory "StorPulse.Windows.App.exe"
+          if (-not (Test-Path -LiteralPath $Executable -PathType Leaf)) {
+              throw "WinUI 3 壳层发布结果缺少 StorPulse.Windows.App.exe"
+          }
+          Copy-Item -LiteralPath "scripts/windows-shell-gate/run-shell-gate.cmd" `
+            -Destination (Join-Path $OutputDirectory "运行 WinUI 界面门禁.cmd")
+          Copy-Item -LiteralPath "docs/WindowsWinUI最小壳层实机指南.md" `
+            -Destination (Join-Path $OutputDirectory "Windows WinUI 最小壳层实机指南.md")
+
+      - name: 上传 WinUI 3 阶段 2A 实机测试包
+        uses: actions/upload-artifact@v7
+        with:
+          name: storpulse-windows-shell-gate-x64-${{ github.sha }}
+          path: .codex-tmp/windows-shell-gate-x64
           if-no-files-found: error
           retention-days: 14
