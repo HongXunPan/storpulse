@@ -112,11 +112,16 @@ function Complete-ServiceFallbackGate {
     $MonotonicMilliseconds = [UInt64]$Record.monotonicMilliseconds
     $CapturedUtcMilliseconds = [Int64]$BeforeSnapshot.capturedUtcMilliseconds
     $NowUtcMilliseconds = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+    $EarliestTimestampUtc = if ($CapturedUtcMilliseconds -gt 1000) {
+        [UInt64]($CapturedUtcMilliseconds - 1000)
+    } else {
+        [UInt64]0
+    }
     $SafeIdentifierPattern = '^[A-Za-z0-9._-]{1,128}$'
     $ServiceVersionPattern = '^[A-Za-z0-9._-]{1,64}$'
     if (-not $NameMatch.Success -or
         ([UInt64]$NameMatch.Groups[1].Value) -ne $TimestampUtc -or
-        $TimestampUtc -lt ([UInt64][Math]::Max(0, $CapturedUtcMilliseconds - 1000)) -or
+        $TimestampUtc -lt $EarliestTimestampUtc -or
         $TimestampUtc -gt ([UInt64]($NowUtcMilliseconds + 5000)) -or
         $MonotonicMilliseconds -lt 25000 -or
         $MonotonicMilliseconds -gt 120000 -or
