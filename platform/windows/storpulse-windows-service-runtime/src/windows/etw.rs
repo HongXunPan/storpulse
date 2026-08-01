@@ -57,7 +57,7 @@ impl EtwCallbackContext {
     }
 }
 
-/// # 安全性
+/// # Safety
 ///
 /// `event_record` 必须由 ETW 在回调有效期内提供，且 `UserContext` 必须指向仍存活的
 /// `EtwCallbackContext`。调用方必须等 `ProcessTrace` 返回后才能释放该上下文。

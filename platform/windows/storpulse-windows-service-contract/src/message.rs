@@ -41,6 +41,15 @@ impl ClientMessage {
             | Self::AcknowledgeStop { protocol_version } => *protocol_version,
         }
     }
+
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Self::Connect { .. } => "connect",
+            Self::StartCollection { .. } => "start_collection",
+            Self::StopCollection { .. } => "stop_collection",
+            Self::AcknowledgeStop { .. } => "acknowledge_stop",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -125,9 +134,11 @@ pub enum FailurePhase {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SafeErrorCode {
+    ConnectionFailed,
     UnsupportedProtocol,
     UnsupportedSnapshotSchema,
     InvalidStateTransition,
+    InvalidMessage,
     MessageTooLarge,
     Timeout,
     ClientDisconnected,

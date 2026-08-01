@@ -179,7 +179,15 @@ impl CollectionSession {
         sequence: u64,
         snapshot: &storpulse_core::model::RawSnapshot,
     ) -> Result<(), SessionError> {
-        self.require_state(CollectionState::Collecting, "snapshot")?;
+        if !matches!(
+            self.state,
+            CollectionState::Collecting | CollectionState::Draining
+        ) {
+            return Err(SessionError::InvalidTransition {
+                state: self.state,
+                message: "snapshot",
+            });
+        }
         if snapshot.schema_version != SNAPSHOT_SCHEMA_VERSION {
             return Err(SessionError::UnsupportedSnapshotSchema(
                 snapshot.schema_version,

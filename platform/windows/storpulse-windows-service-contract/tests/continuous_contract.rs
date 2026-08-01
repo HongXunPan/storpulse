@@ -22,15 +22,16 @@ fn complete_collection_flow_preserves_versions_and_sequences() {
     session.observe(&snapshot_message(1, 1_000)).unwrap();
     session.observe(&snapshot_message(2, 2_000)).unwrap();
     session.request_stop().unwrap();
+    session.observe(&snapshot_message(3, 3_000)).unwrap();
     session
         .observe(&ServiceMessage::Stopped {
             protocol_version: PROTOCOL_VERSION,
-            final_sequence: Some(2),
+            final_sequence: Some(3),
         })
         .unwrap();
 
     assert_eq!(session.state(), CollectionState::Stopped);
-    assert_eq!(session.last_sequence(), Some(2));
+    assert_eq!(session.last_sequence(), Some(3));
 }
 
 #[test]

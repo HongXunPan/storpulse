@@ -131,6 +131,29 @@ impl ProductPipe {
         }
     }
 
+    pub(super) fn handle(&self) -> HANDLE {
+        self.handle
+    }
+
+    pub(super) fn data_available(&self) -> Result<bool, PipeError> {
+        let mut available = 0;
+        // SAFETY：句柄有效；PeekNamedPipe 不消费数据，只返回当前可读字节数。
+        if unsafe {
+            PeekNamedPipe(
+                self.handle,
+                std::ptr::null_mut(),
+                0,
+                std::ptr::null_mut(),
+                &mut available,
+                std::ptr::null_mut(),
+            )
+        } == 0
+        {
+            return Err(PipeError::last("peek_available"));
+        }
+        Ok(available > 0)
+    }
+
     pub fn write_message_until<T: Serialize>(
         &self,
         value: &T,

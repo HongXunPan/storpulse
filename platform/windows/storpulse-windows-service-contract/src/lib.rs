@@ -1,9 +1,11 @@
 mod frame;
 mod message;
+mod server;
 mod session;
 
 pub use frame::{FrameError, decode_frame, encode_frame};
 pub use message::{ClientMessage, FailurePhase, SafeErrorCode, ServiceMessage};
+pub use server::{ConnectionRequest, ServiceCommandSession, ServiceSessionError};
 pub use session::{CollectionSession, CollectionState, SessionError};
 pub use storpulse_core::model::SNAPSHOT_SCHEMA_VERSION;
 
