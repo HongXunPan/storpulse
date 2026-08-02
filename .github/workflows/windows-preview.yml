@@ -144,6 +144,21 @@ jobs:
           if (-not (Test-Path -LiteralPath $Executable -PathType Leaf)) {
               throw "WinUI 3 壳层发布结果缺少 StorPulse.Windows.App.exe"
           }
+          $ApplicationResourceCandidates = @(
+              (Join-Path $OutputDirectory "resources.pri"),
+              (Join-Path $OutputDirectory "StorPulse.Windows.App.pri")
+          )
+          $ApplicationResource = $ApplicationResourceCandidates |
+              Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+              Select-Object -First 1
+          if (-not $ApplicationResource) {
+              $PriNames = @(
+                  Get-ChildItem -LiteralPath $OutputDirectory -File -Filter "*.pri" |
+                      Select-Object -ExpandProperty Name
+              )
+              $PriSummary = if ($PriNames.Count -eq 0) { "无" } else { $PriNames -join ", " }
+              throw "WinUI 3 壳层发布结果缺少应用 PRI；现有 PRI：$PriSummary"
+          }
           Copy-Item -LiteralPath "scripts/windows-shell-gate/run-shell-gate.cmd" `
             -Destination (Join-Path $OutputDirectory "运行 WinUI 界面门禁.cmd")
           Copy-Item -LiteralPath "docs/WindowsWinUI最小壳层实机指南.md" `
