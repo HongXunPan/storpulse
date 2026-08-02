@@ -96,7 +96,7 @@ if (
     or "standard_user_required" not in preview_collector
     or "unexpected_diagnostic_content" not in preview_export
     or "[AllowEmptyString()]" not in preview_privacy
-    or "empty_diagnostic_export_validation_failed" not in preview_package_validator
+    or "service_fallback_export_validation_failed" not in preview_package_validator
 ):
     raise SystemExit("Windows 持续采集入口缺少阶段命名、标准用户或归档白名单门禁")
 
