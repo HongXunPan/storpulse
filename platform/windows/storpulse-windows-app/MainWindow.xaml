@@ -32,7 +32,7 @@
                     Text="StorPulse Windows" />
                 <TextBlock
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                    Text="阶段 2A · WinUI 3 高密度列表与局部刷新门禁" />
+                    Text="阶段 2B · 通知区域、单实例与窗口生命周期门禁" />
             </StackPanel>
             <StackPanel
                 Grid.Column="1"
@@ -53,9 +53,9 @@
             Grid.Row="1"
             IsClosable="False"
             IsOpen="True"
-            Message="当前仅使用确定性内存数据验证 WinUI；没有连接服务、读取磁盘指标、写入日志或声明 Windows 平台已支持。"
+            Message="当前继续使用确定性内存数据验证生命周期；关闭窗口后刷新保持运行，可从通知区域恢复。没有连接服务、读取磁盘指标或写入日志。"
             Severity="Informational"
-            Title="界面门禁数据" />
+            Title="阶段 2B 生命周期门禁数据" />
 
         <!-- 列头按钮只在用户点击时排序，周期刷新仅更新固定小批量行。 -->
         <Grid
@@ -203,7 +203,7 @@
                 Grid.Column="1"
                 VerticalAlignment="Center"
                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                Text="关闭窗口将结束本阶段门禁；托盘生命周期在阶段 2B 实现。" />
+                Text="关闭窗口后仍在通知区域运行；请从原生菜单选择“退出 StorPulse”结束门禁。" />
         </Grid>
     </Grid>
 </Window>

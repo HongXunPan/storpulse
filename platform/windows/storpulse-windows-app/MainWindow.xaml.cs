@@ -19,7 +19,7 @@ public sealed partial class MainWindow : Window
         ShellGateConsoleReporter.Stage("main_window_xaml_initialize_started");
         InitializeComponent();
         ShellGateConsoleReporter.Stage("main_window_xaml_initialize_completed");
-        Title = "StorPulse · Windows 阶段 2A 界面门禁";
+        Title = "StorPulse · Windows 阶段 2B 生命周期门禁";
         ShellGateConsoleReporter.Stage("window_resize_started");
         ResizeForGate();
         ShellGateConsoleReporter.Stage("window_resize_completed");

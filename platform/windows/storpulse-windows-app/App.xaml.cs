@@ -1,15 +1,16 @@
 using Microsoft.UI.Xaml;
 using StorPulse.Windows.App.Diagnostics;
+using StorPulse.Windows.App.Lifecycle;
 
 namespace StorPulse.Windows.App;
 
 public partial class App : Application
 {
     private Window? _window;
+    private WindowLifecycleController? _windowLifecycle;
 
     public App()
     {
-        ShellGateConsoleReporter.Initialize();
         UnhandledException += App_UnhandledException;
         ShellGateConsoleReporter.Stage("app_xaml_initialize_started");
         try
@@ -32,14 +33,34 @@ public partial class App : Application
             ShellGateConsoleReporter.Stage("main_window_construction_started");
             _window = new MainWindow();
             ShellGateConsoleReporter.Stage("main_window_construction_completed");
+            ShellGateConsoleReporter.Stage("window_lifecycle_construction_started");
+            _windowLifecycle = new WindowLifecycleController(_window);
+            ShellGateConsoleReporter.Stage("window_lifecycle_construction_completed");
+            ActivationRouter.Register(HandleRedirectedActivation);
             ShellGateConsoleReporter.Stage("window_activation_started");
-            _window.Activate();
+            _windowLifecycle.ShowMainWindow();
             ShellGateConsoleReporter.Stage("window_activation_completed");
         }
         catch (Exception exception)
         {
             ShellGateConsoleReporter.Failure("app_launch", exception);
             throw;
+        }
+    }
+
+    private void HandleRedirectedActivation()
+    {
+        var dispatcher = _window?.DispatcherQueue;
+        if (dispatcher is null || !dispatcher.TryEnqueue(() =>
+            {
+                ShellGateConsoleReporter.Stage("redirected_activation_window_show_started");
+                _windowLifecycle?.ShowMainWindow();
+                ShellGateConsoleReporter.Stage("redirected_activation_window_show_completed");
+            }))
+        {
+            ShellGateConsoleReporter.Failure(
+                "redirected_activation_dispatch",
+                new InvalidOperationException("无法把单实例唤起请求发送到界面线程。"));
         }
     }
 

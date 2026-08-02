@@ -127,7 +127,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: 构建 WinUI 3 阶段 2A 自包含壳层
+      - name: 构建 WinUI 3 阶段 2B 生命周期壳层
         shell: pwsh
         run: |
           $Project = "platform/windows/storpulse-windows-app/StorPulse.Windows.App.csproj"
@@ -164,7 +164,7 @@ jobs:
           Copy-Item -LiteralPath "docs/WindowsWinUI最小壳层实机指南.md" `
             -Destination (Join-Path $OutputDirectory "Windows WinUI 最小壳层实机指南.md")
 
-      - name: 上传 WinUI 3 阶段 2A 实机测试包
+      - name: 上传 WinUI 3 阶段 2B 实机测试包
         uses: actions/upload-artifact@v7
         with:
           name: storpulse-windows-shell-gate-x64-${{ github.sha }}

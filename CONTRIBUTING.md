@@ -5,7 +5,7 @@
 - macOS 阶段 0：macOS 14 或更高版本、Xcode 26.5 当前 SDK。
 - Rust：由 `rust-toolchain.toml` 固定；当前环境可通过 `rustup run` 调用。
 - Windows 自动构建：GitHub Actions `windows-2025` runner，只证明 Windows x64 编译、测试、脚本结构和打包。
-- Windows 实机：Windows 10 22H2 x64 已完成持续采集、异常清理、传统待机（S3）恢复和服务后备记录门禁；桌面诊断、WinUI、长期运行与 Windows 11 仍需分别验证。
+- Windows 实机：Windows 10 x64 已完成持续采集、异常清理、传统待机（S3）恢复、服务后备记录和阶段 2A WinUI 最小壳层门禁；阶段 2B 生命周期、桌面诊断、长期运行与 Windows 11 仍需分别验证。
 
 ## 最小验证
 
@@ -25,7 +25,7 @@ Windows runner 校验：
 ./scripts/validate_stage0_windows.ps1
 ```
 
-WinUI 3 阶段 2A 壳层由 GitHub Actions 使用固定 .NET SDK 和 NuGet 版本发布为自包含 x64 artifact；macOS 本机不替代 Windows XAML 构建，也不尝试启动该产物。实机操作见[Windows WinUI 最小壳层实机指南](docs/WindowsWinUI最小壳层实机指南.md)。
+WinUI 3 阶段 2A 最小壳层已通过 Windows 10 标准用户实机门禁；当前阶段 2B 继续用 GitHub Actions 的固定 .NET SDK 和 NuGet 版本发布自包含 x64 artifact，验证通知区域、单实例和窗口生命周期。macOS 本机不替代 Windows XAML 构建，也不尝试启动该产物。实机操作见[Windows WinUI 最小壳层实机指南](docs/WindowsWinUI最小壳层实机指南.md)。
 
 阶段 0 成品包生成后，Actions 会用 Windows PowerShell 5.1 执行 `scripts/validate_stage0_windows_package.ps1`。阶段 1 持续采集包由 `scripts/validate_windows_preview_package.ps1` 检查服务权限、二进制哈希、UTF-8 BOM、标准用户采集入口、服务后备记录合成回归、阶段化 ZIP 与显式反馈渠道；CI 不以管理员 runner 冒充标准用户实机协议闭环。
 
