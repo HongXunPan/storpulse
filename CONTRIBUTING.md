@@ -5,7 +5,7 @@
 - macOS 阶段 0：macOS 14 或更高版本、Xcode 26.5 当前 SDK。
 - Rust：由 `rust-toolchain.toml` 固定；当前环境可通过 `rustup run` 调用。
 - Windows 自动构建：GitHub Actions `windows-2025` runner，只证明 Windows x64 编译、测试、脚本结构和打包。
-- Windows 实机：Windows 10 x64 已完成持续采集、异常清理、传统待机（S3）恢复、服务后备记录和阶段 2A WinUI 最小壳层门禁；阶段 2B 生命周期、桌面诊断、长期运行与 Windows 11 仍需分别验证。
+- Windows 实机：Windows 10 x64 已完成持续采集、异常清理、传统待机（S3）恢复、服务后备记录和阶段 2A–2B WinUI 界面生命周期门禁；阶段 2C 真实采集界面、桌面诊断、长期运行与 Windows 11 仍需分别验证。
 
 ## 最小验证
 
@@ -25,11 +25,11 @@ Windows runner 校验：
 ./scripts/validate_stage0_windows.ps1
 ```
 
-WinUI 3 阶段 2A 最小壳层已通过 Windows 10 标准用户实机门禁；当前阶段 2B 继续用 GitHub Actions 的固定 .NET SDK 和 NuGet 版本发布自包含 x64 artifact，验证通知区域、单实例和窗口生命周期。macOS 本机不替代 Windows XAML 构建，也不尝试启动该产物。实机操作见[Windows WinUI 最小壳层实机指南](docs/WindowsWinUI最小壳层实机指南.md)。
+WinUI 3 阶段 2A–2B 界面与生命周期已通过 Windows 10 标准用户实机门禁；当前阶段 2C 用 GitHub Actions 的固定 .NET SDK、NuGet 和 Rust 工具链发布统一 x64 artifact，连接按需服务、Rust 客户端 DLL 与共享引擎 DLL。macOS 本机不替代 Windows XAML 构建，也不尝试启动该产物。实机操作见[Windows 实时采集界面实机指南](docs/Windows实时采集界面实机指南.md)，已通过的生命周期复核见[Windows WinUI 最小壳层实机指南](docs/WindowsWinUI最小壳层实机指南.md)。
 
 阶段 0 成品包生成后，Actions 会用 Windows PowerShell 5.1 执行 `scripts/validate_stage0_windows_package.ps1`。阶段 1 持续采集包由 `scripts/validate_windows_preview_package.ps1` 检查服务权限、二进制哈希、UTF-8 BOM、标准用户采集入口、服务后备记录合成回归、阶段化 ZIP 与显式反馈渠道；CI 不以管理员 runner 冒充标准用户实机协议闭环。
 
-Windows 协作者只使用 Actions 产物，不需要安装开发环境；阶段 0 操作见[Windows 阶段 0 协作调试指南](docs/Windows阶段0协作调试指南.md)，阶段 1 操作见[Windows 持续采集实机验证指南](docs/Windows持续采集实机验证指南.md)。
+Windows 协作者只使用 Actions 产物，不需要安装开发环境；阶段 0 操作见[Windows 阶段 0 协作调试指南](docs/Windows阶段0协作调试指南.md)，阶段 1 操作见[Windows 持续采集实机验证指南](docs/Windows持续采集实机验证指南.md)，阶段 2C 操作见[Windows 实时采集界面实机指南](docs/Windows实时采集界面实机指南.md)。
 
 脚本会把缓存、测试负载和报告放在 `.codex-tmp/`，完成后清理负载文件。报告包含宿主环境和聚合指标，不包含文件路径、命令行或用户名。
 

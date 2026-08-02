@@ -12,12 +12,14 @@ internal sealed class WindowLifecycleController : IDisposable
     private readonly AppWindow _appWindow;
     private readonly nint _windowHandle;
     private readonly NotificationAreaController _notificationArea;
+    private readonly Func<Task> _beforeExit;
     private bool _exitRequested;
     private bool _disposed;
 
-    public WindowLifecycleController(Window window)
+    public WindowLifecycleController(Window window, Func<Task> beforeExit)
     {
         _window = window ?? throw new ArgumentNullException(nameof(window));
+        _beforeExit = beforeExit ?? throw new ArgumentNullException(nameof(beforeExit));
         _windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(window);
         var windowId = Win32Interop.GetWindowIdFromWindow(_windowHandle);
         _appWindow = AppWindow.GetFromWindowId(windowId)
@@ -87,7 +89,7 @@ internal sealed class WindowLifecycleController : IDisposable
         }
     }
 
-    private void RequestExit()
+    private async void RequestExit()
     {
         if (_exitRequested)
         {
@@ -96,8 +98,20 @@ internal sealed class WindowLifecycleController : IDisposable
 
         _exitRequested = true;
         ShellGateConsoleReporter.Stage("application_exit_requested");
-        Dispose();
-        _window.Close();
+        try
+        {
+            await _beforeExit();
+            ShellGateConsoleReporter.Stage("application_collection_cleanup_completed");
+        }
+        catch (Exception exception)
+        {
+            ShellGateConsoleReporter.Failure("application_collection_cleanup", exception);
+        }
+        finally
+        {
+            Dispose();
+            _window.Close();
+        }
     }
 
     private static void ReportDispatcherFailure(string source)

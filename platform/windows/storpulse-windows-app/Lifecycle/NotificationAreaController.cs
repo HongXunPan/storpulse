@@ -115,7 +115,7 @@ internal sealed class NotificationAreaController : IDisposable
                 | NotifyIconFlagGuid,
             CallbackMessage = NotificationCallbackMessage,
             IconHandle = iconHandle,
-            ToolTip = "StorPulse 阶段 2B 生命周期门禁",
+            ToolTip = "StorPulse 阶段 2C 实时采集门禁",
             Info = string.Empty,
             InfoTitle = string.Empty,
             ItemGuid = NotificationIconGuid,

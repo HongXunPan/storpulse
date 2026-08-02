@@ -2,9 +2,6 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::{Duration, Instant};
 
-use storpulse_windows_ipc::ProductPipe;
-use storpulse_windows_service_contract::{CollectionSession, ServiceMessage};
-
 use crate::{GateOptions, GateReport, WorkloadEvidence};
 
 mod clock;
@@ -12,7 +9,8 @@ mod clock;
 use clock::SuspendDetector;
 
 use super::evidence::{record_snapshot, snapshot_phase_complete, workload_complete};
-use super::{ClientError, complete_protocol, receive, workload};
+use super::product_session::ProductSession;
+use super::{ClientError, complete_protocol, workload};
 
 const READY_MARKER_NAME: &str = ".sleep-resume-ready";
 pub(super) const MINIMUM_SLEEP_MILLISECONDS: u64 = 2_000;
@@ -22,8 +20,7 @@ const SNAPSHOT_TIMEOUT: Duration = Duration::from_secs(3);
 pub(super) fn run(
     options: &GateOptions,
     report: &mut GateReport,
-    pipe: &ProductPipe,
-    session: &mut CollectionSession,
+    session: &mut ProductSession,
 ) -> Result<(), ClientError> {
     if report.sleep_resume.is_none() {
         return Err(ClientError::new(
@@ -33,7 +30,7 @@ pub(super) fn run(
         ));
     }
 
-    collect_pre_sleep_evidence(options, report, pipe, session)?;
+    collect_pre_sleep_evidence(options, report, session)?;
     let mut detector = SuspendDetector::new()?;
     let ready_tick_count = detector.baseline_tick_count_milliseconds();
     let marker = ReadyMarker::create(&options.output_directory)?;
@@ -41,17 +38,16 @@ pub(super) fn run(
         evidence.ready_for_sleep = true;
     }
 
-    wait_for_resume(report, pipe, session, &mut detector, ready_tick_count)?;
+    wait_for_resume(report, session, &mut detector, ready_tick_count)?;
     drop(marker);
-    collect_post_resume_evidence(options, report, pipe, session)?;
-    complete_protocol(pipe, session, report)
+    collect_post_resume_evidence(options, report, session)?;
+    complete_protocol(session, report)
 }
 
 fn collect_pre_sleep_evidence(
     options: &GateOptions,
     report: &mut GateReport,
-    pipe: &ProductPipe,
-    session: &mut CollectionSession,
+    session: &mut ProductSession,
 ) -> Result<(), ClientError> {
     report.workload.attempted = true;
     let receiver = workload::spawn(options.output_directory.clone());
@@ -59,7 +55,7 @@ fn collect_pre_sleep_evidence(
     let mut workload_result = None;
 
     while Instant::now() < deadline {
-        let (sequence, snapshot) = receive_snapshot(pipe, session, SNAPSHOT_TIMEOUT)?;
+        let (sequence, snapshot) = receive_snapshot(session, SNAPSHOT_TIMEOUT)?;
         record_phase_snapshot(report, sequence, &snapshot, false)?;
         poll_workload(&receiver, &mut workload_result)?;
         if pre_sleep_ready(report, workload_result.as_ref()) {
@@ -84,13 +80,12 @@ fn collect_pre_sleep_evidence(
 
 fn wait_for_resume(
     report: &mut GateReport,
-    pipe: &ProductPipe,
-    session: &mut CollectionSession,
+    session: &mut ProductSession,
     detector: &mut SuspendDetector,
     ready_tick_count: u64,
 ) -> Result<(), ClientError> {
     loop {
-        let (sequence, snapshot) = receive_snapshot(pipe, session, SLEEP_WAIT_TIMEOUT)?;
+        let (sequence, snapshot) = receive_snapshot(session, SLEEP_WAIT_TIMEOUT)?;
         let observation = detector.observe()?;
         if observation.estimated_sleep_milliseconds >= MINIMUM_SLEEP_MILLISECONDS {
             if let Some(evidence) = report.sleep_resume.as_mut() {
@@ -125,8 +120,7 @@ fn wait_for_resume(
 fn collect_post_resume_evidence(
     options: &GateOptions,
     report: &mut GateReport,
-    pipe: &ProductPipe,
-    session: &mut CollectionSession,
+    session: &mut ProductSession,
 ) -> Result<(), ClientError> {
     let receiver = workload::spawn(options.output_directory.clone());
     if let Some(evidence) = report.sleep_resume.as_mut() {
@@ -136,7 +130,7 @@ fn collect_post_resume_evidence(
     let mut workload_result = None;
 
     while Instant::now() < deadline {
-        let (sequence, snapshot) = receive_snapshot(pipe, session, SNAPSHOT_TIMEOUT)?;
+        let (sequence, snapshot) = receive_snapshot(session, SNAPSHOT_TIMEOUT)?;
         record_phase_snapshot(report, sequence, &snapshot, true)?;
         poll_workload(&receiver, &mut workload_result)?;
         if post_resume_ready(report, workload_result.as_ref()) {
@@ -162,18 +156,10 @@ fn collect_post_resume_evidence(
 }
 
 fn receive_snapshot(
-    pipe: &ProductPipe,
-    session: &mut CollectionSession,
+    session: &mut ProductSession,
     timeout: Duration,
 ) -> Result<(u64, storpulse_core::model::RawSnapshot), ClientError> {
-    let message = receive(pipe, session, Instant::now() + timeout)?;
-    let ServiceMessage::Snapshot {
-        sequence, snapshot, ..
-    } = message
-    else {
-        return Err(ClientError::protocol("expected_snapshot"));
-    };
-    Ok((sequence, *snapshot))
+    session.receive_snapshot(Instant::now() + timeout)
 }
 
 fn record_phase_snapshot(

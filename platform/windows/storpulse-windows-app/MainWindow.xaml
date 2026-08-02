@@ -32,7 +32,7 @@
                     Text="StorPulse Windows" />
                 <TextBlock
                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                    Text="阶段 2B · 通知区域、单实例与窗口生命周期门禁" />
+                    Text="阶段 2C · 服务、协议、共享引擎与原生界面纵切" />
             </StackPanel>
             <StackPanel
                 Grid.Column="1"
@@ -53,9 +53,9 @@
             Grid.Row="1"
             IsClosable="False"
             IsOpen="True"
-            Message="当前继续使用确定性内存数据验证生命周期；关闭窗口后刷新保持运行，可从通知区域恢复。没有连接服务、读取磁盘指标或写入日志。"
-            Severity="Informational"
-            Title="阶段 2B 生命周期门禁数据" />
+            Message="{x:Bind ViewModel.InformationMessage, Mode=OneWay}"
+            Severity="{x:Bind ViewModel.InformationSeverity, Mode=OneWay}"
+            Title="{x:Bind ViewModel.InformationTitle, Mode=OneWay}" />
 
         <!-- 列头按钮只在用户点击时排序，周期刷新仅更新固定小批量行。 -->
         <Grid
@@ -123,7 +123,7 @@
         <ListView
             x:Name="ApplicationList"
             Grid.Row="3"
-            AutomationProperties.Name="WinUI 高密度应用列表"
+            AutomationProperties.Name="Windows 实时磁盘 I/O 应用列表"
             IsItemClickEnabled="False"
             ItemsSource="{x:Bind ViewModel.Rows}"
             SelectedItem="{x:Bind ViewModel.SelectedRow, Mode=TwoWay}"
@@ -203,7 +203,7 @@
                 Grid.Column="1"
                 VerticalAlignment="Center"
                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                Text="关闭窗口后仍在通知区域运行；请从原生菜单选择“退出 StorPulse”结束门禁。" />
+                Text="关闭窗口后继续采集；从原生菜单选择“退出 StorPulse”会等待协议、ETW 与服务清理。" />
         </Grid>
     </Grid>
 </Window>

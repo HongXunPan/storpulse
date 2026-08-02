@@ -84,7 +84,7 @@ try {
 
     Write-Host "StorPulse 按需采集服务已安装。" -ForegroundColor Green
     Write-Host "服务启动类型：手动；运行身份：LocalSystem。"
-    Write-Host "关闭本窗口后，请按指南用普通权限运行两个采集入口。"
+    Write-Host "关闭本窗口后，请按当前测试包指南从普通权限入口继续验证。"
 }
 catch {
     if ($Created) {

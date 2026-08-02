@@ -1,8 +1,8 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using Microsoft.UI.Xaml.Controls;
 using StorPulse.Windows.App.Models;
-using StorPulse.Windows.App.Services;
 
 namespace StorPulse.Windows.App.ViewModels;
 
@@ -16,72 +16,116 @@ public enum ApplicationSortKey
 
 public sealed class RealtimeShellViewModel : INotifyPropertyChanged
 {
-    private readonly ShellGateSnapshotSource _source = new();
-    private readonly Dictionary<string, RealtimeApplicationRow> _rowsById;
+    private readonly Dictionary<string, RealtimeApplicationRow> _rowsById =
+        new(StringComparer.Ordinal);
     private RealtimeApplicationRow? _selectedRow;
-    private string _statusText = "等待首次局部刷新";
-    private ApplicationSortKey _sortKey = ApplicationSortKey.Name;
-    private bool _sortDescending;
+    private string _statusText = "正在连接按需采集服务";
+    private string _informationTitle = "阶段 2C 正在启动";
+    private string _informationMessage = "等待标准用户客户端连接本机采集服务。";
+    private InfoBarSeverity _informationSeverity = InfoBarSeverity.Informational;
+    private ApplicationSortKey _sortKey = ApplicationSortKey.ReadRate;
+    private bool _sortDescending = true;
     private ulong _refreshCount;
-
-    public RealtimeShellViewModel()
-    {
-        var rows = _source.CreateInitialSnapshot()
-            .Select(sample => new RealtimeApplicationRow(sample))
-            .ToArray();
-        _rowsById = rows.ToDictionary(row => row.Id, StringComparer.Ordinal);
-        Rows = new ObservableCollection<RealtimeApplicationRow>(rows);
-        SortBy(ApplicationSortKey.ReadRate);
-    }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public ObservableCollection<RealtimeApplicationRow> Rows { get; }
+    public ObservableCollection<RealtimeApplicationRow> Rows { get; } = [];
 
-    public string RowCountText => $"{Rows.Count:N0} 行内存门禁数据";
+    public string RowCountText => $"{Rows.Count:N0} 个应用";
 
     public string SortText => $"排序：{SortName(_sortKey)} {(_sortDescending ? "降序" : "升序")}";
 
     public string StatusText
     {
         get => _statusText;
-        private set
-        {
-            if (_statusText == value)
-            {
-                return;
-            }
+        private set => SetField(ref _statusText, value);
+    }
 
-            _statusText = value;
-            OnPropertyChanged();
-        }
+    public string InformationTitle
+    {
+        get => _informationTitle;
+        private set => SetField(ref _informationTitle, value);
+    }
+
+    public string InformationMessage
+    {
+        get => _informationMessage;
+        private set => SetField(ref _informationMessage, value);
+    }
+
+    public InfoBarSeverity InformationSeverity
+    {
+        get => _informationSeverity;
+        private set => SetField(ref _informationSeverity, value);
     }
 
     public RealtimeApplicationRow? SelectedRow
     {
         get => _selectedRow;
-        set
-        {
-            if (ReferenceEquals(_selectedRow, value))
-            {
-                return;
-            }
-
-            _selectedRow = value;
-            OnPropertyChanged();
-        }
+        set => SetField(ref _selectedRow, value);
     }
 
-    public void Advance()
+    internal void ApplySnapshot(RealtimeSnapshotData snapshot)
     {
-        var updates = _source.Advance();
-        foreach (var update in updates)
+        var activeIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var application in snapshot.Applications)
         {
-            _rowsById[update.Id].Apply(update);
+            if (string.IsNullOrWhiteSpace(application.ApplicationId)
+                || !activeIds.Add(application.ApplicationId))
+            {
+                continue;
+            }
+
+            if (!_rowsById.TryGetValue(application.ApplicationId, out var row))
+            {
+                row = new RealtimeApplicationRow(application);
+                _rowsById.Add(row.Id, row);
+                Rows.Add(row);
+            }
+            else
+            {
+                row.Apply(application);
+            }
         }
 
+        foreach (var removedId in _rowsById.Keys.Where(id => !activeIds.Contains(id)).ToArray())
+        {
+            var removed = _rowsById[removedId];
+            Rows.Remove(removed);
+            _rowsById.Remove(removedId);
+            if (ReferenceEquals(SelectedRow, removed))
+            {
+                SelectedRow = null;
+            }
+        }
+
+        ApplySortOrder();
         _refreshCount++;
-        StatusText = $"第 {_refreshCount:N0} 次刷新 · 本次仅更新 {updates.Count} 行 · 未产生磁盘写入";
+        var restricted = snapshot.Summary.RestrictedProcesses;
+        StatusText = $"第 {_refreshCount:N0} 次实时刷新 · "
+            + $"{snapshot.Summary.ReadableProcesses:N0} 个可读进程 · "
+            + $"{restricted:N0} 个受限进程";
+        InformationTitle = snapshot.Freshness == "fresh"
+            ? "Windows ETW 实时采集中"
+            : "Windows 实时数据已过期";
+        InformationMessage = $"来源：{DisplaySource(snapshot.MetricSource)}；"
+            + $"完整性：{DisplayCompleteness(snapshot.Completeness)}。"
+            + "关闭窗口后仍在通知区域采集，显式退出会停止协议与服务。";
+        InformationSeverity = snapshot.Freshness == "fresh"
+            && snapshot.Completeness == "complete"
+                ? InfoBarSeverity.Success
+                : InfoBarSeverity.Warning;
+        OnPropertyChanged(nameof(RowCountText));
+    }
+
+    internal void ShowFailure(string title, string message, bool restricted)
+    {
+        InformationTitle = title;
+        InformationMessage = message;
+        InformationSeverity = restricted
+            ? InfoBarSeverity.Warning
+            : InfoBarSeverity.Error;
+        StatusText = restricted ? "采集能力受限" : "实时采集失败";
     }
 
     public void SortBy(ApplicationSortKey key)
@@ -96,16 +140,21 @@ public sealed class RealtimeShellViewModel : INotifyPropertyChanged
             _sortDescending = key != ApplicationSortKey.Name;
         }
 
-        var selectedId = SelectedRow?.Id;
-        var sorted = SortRows(Rows, _sortKey, _sortDescending).ToArray();
-        Rows.Clear();
-        foreach (var row in sorted)
-        {
-            Rows.Add(row);
-        }
-
-        SelectedRow = selectedId is null ? null : _rowsById[selectedId];
+        ApplySortOrder();
         OnPropertyChanged(nameof(SortText));
+    }
+
+    private void ApplySortOrder()
+    {
+        var sorted = SortRows(Rows, _sortKey, _sortDescending).ToArray();
+        for (var targetIndex = 0; targetIndex < sorted.Length; targetIndex++)
+        {
+            var currentIndex = Rows.IndexOf(sorted[targetIndex]);
+            if (currentIndex != targetIndex)
+            {
+                Rows.Move(currentIndex, targetIndex);
+            }
+        }
     }
 
     private static IEnumerable<RealtimeApplicationRow> SortRows(
@@ -116,8 +165,8 @@ public sealed class RealtimeShellViewModel : INotifyPropertyChanged
         Func<RealtimeApplicationRow, object> selector = key switch
         {
             ApplicationSortKey.Name => row => row.DisplayName,
-            ApplicationSortKey.ReadRate => row => row.ReadBytesPerSecond,
-            ApplicationSortKey.WriteRate => row => row.WriteBytesPerSecond,
+            ApplicationSortKey.ReadRate => row => row.ReadBytesPerSecond ?? -1d,
+            ApplicationSortKey.WriteRate => row => row.WriteBytesPerSecond ?? -1d,
             ApplicationSortKey.Total => row => row.TotalBytes,
             _ => row => row.DisplayName,
         };
@@ -137,6 +186,33 @@ public sealed class RealtimeShellViewModel : INotifyPropertyChanged
             ApplicationSortKey.Total => "本次累计",
             _ => "应用",
         };
+    }
+
+    private static string DisplaySource(string source)
+    {
+        return string.IsNullOrWhiteSpace(source) ? "未知" : source;
+    }
+
+    private static string DisplayCompleteness(string completeness)
+    {
+        return completeness switch
+        {
+            "complete" => "完整",
+            "partial" => "部分可用",
+            "restricted" => "受限",
+            _ => "未知",
+        };
+    }
+
+    private void SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    {
+        if (EqualityComparer<T>.Default.Equals(field, value))
+        {
+            return;
+        }
+
+        field = value;
+        OnPropertyChanged(propertyName);
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)

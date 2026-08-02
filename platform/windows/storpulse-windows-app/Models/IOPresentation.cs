@@ -2,14 +2,20 @@ namespace StorPulse.Windows.App.Models;
 
 internal static class IOPresentation
 {
-    public static string Rate(double bytesPerSecond)
+    public static string Rate(double? bytesPerSecond)
     {
-        return bytesPerSecond switch
+        if (bytesPerSecond is null)
         {
-            < 1024 => $"{bytesPerSecond:0} B/s",
-            < 1024 * 1024 => $"{bytesPerSecond / 1024:0.0} KiB/s",
-            < 1024 * 1024 * 1024 => $"{bytesPerSecond / (1024 * 1024):0.0} MiB/s",
-            _ => $"{bytesPerSecond / (1024 * 1024 * 1024):0.00} GiB/s",
+            return "不可用";
+        }
+
+        var value = bytesPerSecond.Value;
+        return value switch
+        {
+            < 1024 => $"{value:0} B/s",
+            < 1024 * 1024 => $"{value / 1024:0.0} KiB/s",
+            < 1024 * 1024 * 1024 => $"{value / (1024 * 1024):0.0} MiB/s",
+            _ => $"{value / (1024 * 1024 * 1024):0.00} GiB/s",
         };
     }
 

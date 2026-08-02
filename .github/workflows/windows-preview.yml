@@ -18,11 +18,15 @@ on:
       - "platform/windows/storpulse-windows-service-runtime/**"
       - "scripts/windows-preview/**"
       - "scripts/windows-shell-gate/**"
+      - "scripts/windows-realtime-gate/**"
       - "scripts/package_windows_preview.ps1"
+      - "scripts/package_windows_realtime_gate.ps1"
       - "scripts/validate_windows_preview_package.ps1"
+      - "scripts/validate_windows_realtime_gate_package.ps1"
       - "docs/Windows持续采集实机验证指南.md"
       - "docs/Windows持续采集与诊断契约.md"
       - "docs/WindowsWinUI最小壳层实机指南.md"
+      - "docs/Windows实时采集界面实机指南.md"
       - ".github/workflows/windows-preview.yml"
   push:
     branches: [main]
@@ -41,11 +45,15 @@ on:
       - "platform/windows/storpulse-windows-service-runtime/**"
       - "scripts/windows-preview/**"
       - "scripts/windows-shell-gate/**"
+      - "scripts/windows-realtime-gate/**"
       - "scripts/package_windows_preview.ps1"
+      - "scripts/package_windows_realtime_gate.ps1"
       - "scripts/validate_windows_preview_package.ps1"
+      - "scripts/validate_windows_realtime_gate_package.ps1"
       - "docs/Windows持续采集实机验证指南.md"
       - "docs/Windows持续采集与诊断契约.md"
       - "docs/WindowsWinUI最小壳层实机指南.md"
+      - "docs/Windows实时采集界面实机指南.md"
       - ".github/workflows/windows-preview.yml"
 
 permissions:
@@ -88,6 +96,7 @@ jobs:
           cargo test --locked --workspace --target x86_64-pc-windows-msvc
           cargo clippy --locked `
             --package storpulse-windows-client `
+            --package storpulse-ffi `
             --package storpulse-windows-diagnostics `
             --package storpulse-windows-ipc `
             --package storpulse-windows-service-contract `
@@ -103,6 +112,7 @@ jobs:
           cargo build --locked --release `
             --package storpulse-windows-service `
             --package storpulse-windows-client `
+            --package storpulse-ffi `
             --target x86_64-pc-windows-msvc
 
       - name: 生成并校验持续采集实机测试包
@@ -127,47 +137,55 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: 构建 WinUI 3 阶段 2B 生命周期壳层
+      - name: 构建并组装 WinUI 3 阶段 2C 实时采集界面
         shell: pwsh
         run: |
           $Project = "platform/windows/storpulse-windows-app/StorPulse.Windows.App.csproj"
-          $OutputDirectory = ".codex-tmp/windows-shell-gate-x64"
+          $ApplicationDirectory = ".codex-tmp/windows-realtime-app-x64"
+          $PackageOutputDirectory = ".codex-tmp/windows-realtime-package"
           dotnet restore $Project -p:Platform=x64
           dotnet publish $Project `
             --configuration Release `
             --runtime win-x64 `
             --self-contained true `
             --no-restore `
-            --output $OutputDirectory `
+            --output $ApplicationDirectory `
             -p:Platform=x64
-          $Executable = Join-Path $OutputDirectory "StorPulse.Windows.App.exe"
+          $Executable = Join-Path $ApplicationDirectory "StorPulse.Windows.App.exe"
           if (-not (Test-Path -LiteralPath $Executable -PathType Leaf)) {
-              throw "WinUI 3 壳层发布结果缺少 StorPulse.Windows.App.exe"
+              throw "WinUI 3 阶段 2C 发布结果缺少 StorPulse.Windows.App.exe"
           }
           $ApplicationResourceCandidates = @(
-              (Join-Path $OutputDirectory "resources.pri"),
-              (Join-Path $OutputDirectory "StorPulse.Windows.App.pri")
+              (Join-Path $ApplicationDirectory "resources.pri"),
+              (Join-Path $ApplicationDirectory "StorPulse.Windows.App.pri")
           )
           $ApplicationResource = $ApplicationResourceCandidates |
               Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
               Select-Object -First 1
           if (-not $ApplicationResource) {
               $PriNames = @(
-                  Get-ChildItem -LiteralPath $OutputDirectory -File -Filter "*.pri" |
+                  Get-ChildItem -LiteralPath $ApplicationDirectory -File -Filter "*.pri" |
                       Select-Object -ExpandProperty Name
               )
               $PriSummary = if ($PriNames.Count -eq 0) { "无" } else { $PriNames -join ", " }
-              throw "WinUI 3 壳层发布结果缺少应用 PRI；现有 PRI：$PriSummary"
+              throw "WinUI 3 阶段 2C 发布结果缺少应用 PRI；现有 PRI：$PriSummary"
           }
-          Copy-Item -LiteralPath "scripts/windows-shell-gate/run-shell-gate.cmd" `
-            -Destination (Join-Path $OutputDirectory "运行 WinUI 界面门禁.cmd")
-          Copy-Item -LiteralPath "docs/WindowsWinUI最小壳层实机指南.md" `
-            -Destination (Join-Path $OutputDirectory "Windows WinUI 最小壳层实机指南.md")
+          $CargoMetadata = cargo metadata --locked --no-deps --format-version 1 | ConvertFrom-Json
+          $ReleaseDirectory = Join-Path ([string]$CargoMetadata.target_directory) "x86_64-pc-windows-msvc/release"
+          & ./scripts/package_windows_realtime_gate.ps1 `
+            -ApplicationDirectory $ApplicationDirectory `
+            -ServiceBinaryPath (Join-Path $ReleaseDirectory "storpulse-windows-service.exe") `
+            -ClientLibraryPath (Join-Path $ReleaseDirectory "storpulse_windows_client.dll") `
+            -EngineLibraryPath (Join-Path $ReleaseDirectory "storpulse_ffi.dll") `
+            -OutputDirectory $PackageOutputDirectory `
+            -CommitSha "${{ github.sha }}"
+          & ./scripts/validate_windows_realtime_gate_package.ps1 `
+            -PackageRoot (Join-Path $PackageOutputDirectory "storpulse-windows-stage2c-x64")
 
-      - name: 上传 WinUI 3 阶段 2B 实机测试包
+      - name: 上传 WinUI 3 阶段 2C 实时采集实机测试包
         uses: actions/upload-artifact@v7
         with:
-          name: storpulse-windows-shell-gate-x64-${{ github.sha }}
-          path: .codex-tmp/windows-shell-gate-x64
+          name: storpulse-windows-realtime-gate-x64-${{ github.sha }}
+          path: .codex-tmp/windows-realtime-package/storpulse-windows-stage2c-x64
           if-no-files-found: error
           retention-days: 14

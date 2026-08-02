@@ -6,7 +6,7 @@ namespace StorPulse.Windows.App;
 
 public partial class App : Application
 {
-    private Window? _window;
+    private MainWindow? _window;
     private WindowLifecycleController? _windowLifecycle;
 
     public App()
@@ -31,12 +31,16 @@ public partial class App : Application
         try
         {
             ShellGateConsoleReporter.Stage("main_window_construction_started");
-            _window = new MainWindow();
+            var window = new MainWindow();
+            _window = window;
             ShellGateConsoleReporter.Stage("main_window_construction_completed");
             ShellGateConsoleReporter.Stage("window_lifecycle_construction_started");
-            _windowLifecycle = new WindowLifecycleController(_window);
+            _windowLifecycle = new WindowLifecycleController(
+                window,
+                window.StopCollectionAsync);
             ShellGateConsoleReporter.Stage("window_lifecycle_construction_completed");
             ActivationRouter.Register(HandleRedirectedActivation);
+            window.StartCollection();
             ShellGateConsoleReporter.Stage("window_activation_started");
             _windowLifecycle.ShowMainWindow();
             ShellGateConsoleReporter.Stage("window_activation_completed");
