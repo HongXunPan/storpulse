@@ -52,12 +52,15 @@ internal sealed class NotificationAreaController : IDisposable
         _exitApplication = exitApplication ?? throw new ArgumentNullException(nameof(exitApplication));
         _subclassProcedure = WindowSubclassProcedure;
         _menu = new NotificationAreaMenu(windowHandle);
+        ShellGateConsoleReporter.Stage("notification_area_taskbar_message_registration_started");
         _taskbarCreatedMessage = NativeMethods.RegisterWindowMessage("TaskbarCreated");
         if (_taskbarCreatedMessage == 0)
         {
             throw new Win32Exception(Marshal.GetLastWin32Error());
         }
+        ShellGateConsoleReporter.Stage("notification_area_taskbar_message_registration_completed");
 
+        ShellGateConsoleReporter.Stage("notification_area_window_subclass_started");
         if (!NativeMethods.SetWindowSubclass(
                 _windowHandle,
                 _subclassProcedure,
@@ -66,6 +69,7 @@ internal sealed class NotificationAreaController : IDisposable
         {
             throw new Win32Exception(Marshal.GetLastWin32Error());
         }
+        ShellGateConsoleReporter.Stage("notification_area_window_subclass_completed");
 
         try
         {
@@ -98,11 +102,13 @@ internal sealed class NotificationAreaController : IDisposable
 
     private void AddIcon()
     {
+        ShellGateConsoleReporter.Stage("notification_area_icon_load_started");
         var iconHandle = NativeMethods.LoadIcon(0, (nint)DefaultApplicationIcon);
         if (iconHandle == 0)
         {
             throw new Win32Exception(Marshal.GetLastWin32Error());
         }
+        ShellGateConsoleReporter.Stage("notification_area_icon_load_completed");
 
         _iconData = new NativeMethods.NotifyIconData
         {
@@ -121,18 +127,24 @@ internal sealed class NotificationAreaController : IDisposable
             ItemGuid = NotificationIconGuid,
         };
 
+        ShellGateConsoleReporter.Stage("notification_area_icon_add_started");
         if (!NativeMethods.ShellNotifyIcon(NotifyIconAdd, ref _iconData))
         {
             throw new Win32Exception(Marshal.GetLastWin32Error());
         }
 
         _iconAdded = true;
+        ShellGateConsoleReporter.Stage("notification_area_icon_add_completed");
         _iconData.TimeoutOrVersion = NotifyIconVersion4;
+        ShellGateConsoleReporter.Stage("notification_area_icon_version_started");
         if (!NativeMethods.ShellNotifyIcon(NotifyIconSetVersion, ref _iconData))
         {
+            var nativeErrorCode = Marshal.GetLastWin32Error();
             DeleteIcon();
-            throw new Win32Exception(Marshal.GetLastWin32Error());
+            ShellGateConsoleReporter.Stage("notification_area_icon_version_failed");
+            throw new Win32Exception(nativeErrorCode);
         }
+        ShellGateConsoleReporter.Stage("notification_area_icon_version_completed");
 
         ShellGateConsoleReporter.Stage("notification_area_icon_added");
     }

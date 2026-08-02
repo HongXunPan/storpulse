@@ -1,6 +1,7 @@
 @echo off
 setlocal
 cd /d "%~dp0"
+chcp 65001 >nul
 set "STORPULSE_SHELL_GATE_CONSOLE=1"
 
 echo StorPulse Windows Stage 2C realtime collection gate

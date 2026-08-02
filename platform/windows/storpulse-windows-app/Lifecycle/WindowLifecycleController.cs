@@ -20,15 +20,21 @@ internal sealed class WindowLifecycleController : IDisposable
     {
         _window = window ?? throw new ArgumentNullException(nameof(window));
         _beforeExit = beforeExit ?? throw new ArgumentNullException(nameof(beforeExit));
+        ShellGateConsoleReporter.Stage("window_lifecycle_handle_resolution_started");
         _windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(window);
+        ShellGateConsoleReporter.Stage("window_lifecycle_handle_resolution_completed");
+        ShellGateConsoleReporter.Stage("window_lifecycle_app_window_resolution_started");
         var windowId = Win32Interop.GetWindowIdFromWindow(_windowHandle);
         _appWindow = AppWindow.GetFromWindowId(windowId)
             ?? throw new InvalidOperationException("无法取得 WinUI 主窗口对应的 AppWindow。");
+        ShellGateConsoleReporter.Stage("window_lifecycle_app_window_resolution_completed");
         _appWindow.Closing += AppWindow_Closing;
+        ShellGateConsoleReporter.Stage("notification_area_construction_started");
         _notificationArea = new NotificationAreaController(
             _windowHandle,
             QueueShowMainWindow,
             QueueExitApplication);
+        ShellGateConsoleReporter.Stage("notification_area_construction_completed");
     }
 
     public void ShowMainWindow()

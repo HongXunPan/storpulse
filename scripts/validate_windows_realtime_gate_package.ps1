@@ -88,6 +88,7 @@ $RunText = [System.IO.File]::ReadAllText(
     [System.Text.Encoding]::UTF8
 )
 if (-not $RunText.Contains("STORPULSE_SHELL_GATE_CONSOLE=1") -or
+    -not $RunText.Contains("chcp 65001 >nul") -or
     -not $RunText.Contains('start "" /wait "%~dp0StorPulse.Windows.App.exe"') -or
     -not $RunText.Contains("Stage 2C realtime collection gate") -or
     $RunText.Contains("-Verb RunAs") -or

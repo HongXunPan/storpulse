@@ -1,4 +1,6 @@
+using System.ComponentModel;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace StorPulse.Windows.App.Diagnostics;
@@ -32,8 +34,10 @@ internal static partial class ShellGateConsoleReporter
                 return;
             }
 
+            var encoding = new UTF8Encoding(false);
+            Console.OutputEncoding = encoding;
             var writer = TextWriter.Synchronized(
-                new StreamWriter(Console.OpenStandardOutput())
+                new StreamWriter(Console.OpenStandardOutput(), encoding)
                 {
                     AutoFlush = true,
                 });
@@ -72,6 +76,7 @@ internal static partial class ShellGateConsoleReporter
         Console.Error.WriteLine($"failure_stage={_currentStage}");
         Console.Error.WriteLine($"exception_type={exceptionType}");
         Console.Error.WriteLine($"hresult=0x{unchecked((uint)exception.HResult):X8}");
+        WriteNativeErrorCode("native_error_code", exception);
 
         try
         {
@@ -94,6 +99,7 @@ internal static partial class ShellGateConsoleReporter
                 Console.Error.WriteLine($"{prefix}_type={innerType}");
                 Console.Error.WriteLine(
                     $"{prefix}_hresult=0x{unchecked((uint)innerException.HResult):X8}");
+                WriteNativeErrorCode($"{prefix}_native_error_code", innerException);
                 WriteMessageDetails(prefix, innerException.Message);
                 innerException = innerException.InnerException;
             }
@@ -101,6 +107,14 @@ internal static partial class ShellGateConsoleReporter
         catch
         {
             Console.Error.WriteLine("diagnostic_detail_status=unavailable");
+        }
+    }
+
+    private static void WriteNativeErrorCode(string fieldName, Exception exception)
+    {
+        if (exception is Win32Exception win32Exception)
+        {
+            Console.Error.WriteLine($"{fieldName}={win32Exception.NativeErrorCode}");
         }
     }
 
