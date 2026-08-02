@@ -59,8 +59,16 @@ pub struct RealtimeSummary {
     pub readable_processes: usize,
     pub restricted_processes: usize,
     pub exited_processes: usize,
+    #[serde(default)]
+    pub device_count: usize,
     pub collection_duration_nanoseconds: u64,
     pub last_successful_sample_at: String,
+    #[serde(default)]
+    pub unmapped_disk_events: u64,
+    #[serde(default)]
+    pub events_lost: u64,
+    #[serde(default)]
+    pub buffers_lost: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

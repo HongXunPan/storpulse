@@ -71,8 +71,12 @@ impl Engine {
                 readable_processes: raw.summary.readable_processes,
                 restricted_processes: raw.summary.restricted_processes,
                 exited_processes: raw.summary.exited_processes,
+                device_count: raw.summary.device_count,
                 collection_duration_nanoseconds: raw.summary.collection_duration_nanoseconds,
                 last_successful_sample_at: raw.captured_at,
+                unmapped_disk_events: raw.summary.unmapped_disk_events,
+                events_lost: raw.summary.events_lost,
+                buffers_lost: raw.summary.buffers_lost,
             },
             active_observation_session: self.session_tracker.progress(raw.monotonic_nanoseconds),
         };

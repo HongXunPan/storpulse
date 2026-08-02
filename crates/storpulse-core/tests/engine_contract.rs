@@ -31,6 +31,21 @@ fn rates_aggregation_and_running_totals_are_recomputable() {
 }
 
 #[test]
+fn collection_diagnostics_are_preserved_in_realtime_summary() {
+    let mut input = snapshot(1, 100, 200, 1_000, 2_000, 10);
+    input.summary.unmapped_disk_events = 17;
+    input.summary.events_lost = 2;
+    input.summary.buffers_lost = 1;
+
+    let output = Engine::default().ingest(input).unwrap();
+
+    assert_eq!(output.summary.device_count, 1);
+    assert_eq!(output.summary.unmapped_disk_events, 17);
+    assert_eq!(output.summary.events_lost, 2);
+    assert_eq!(output.summary.buffers_lost, 1);
+}
+
+#[test]
 fn legacy_raw_snapshot_schema_is_rejected() {
     let mut legacy = snapshot(1, 100, 200, 1_000, 2_000, 10);
     legacy.schema_version = 1;

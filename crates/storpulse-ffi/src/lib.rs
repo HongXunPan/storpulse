@@ -266,6 +266,10 @@ mod tests {
         let output = unsafe { slice::from_raw_parts(buffer.ptr, buffer.len) };
         let value: serde_json::Value = serde_json::from_slice(output).unwrap();
         assert_eq!(value["schemaVersion"], 2);
+        assert_eq!(value["summary"]["deviceCount"], 0);
+        assert_eq!(value["summary"]["unmappedDiskEvents"], 0);
+        assert_eq!(value["summary"]["eventsLost"], 0);
+        assert_eq!(value["summary"]["buffersLost"], 0);
 
         // 安全：缓冲区和句柄均只释放一次。
         unsafe {

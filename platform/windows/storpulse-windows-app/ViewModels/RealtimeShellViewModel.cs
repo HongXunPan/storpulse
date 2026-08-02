@@ -101,15 +101,31 @@ public sealed class RealtimeShellViewModel : INotifyPropertyChanged
 
         ApplySortOrder();
         _refreshCount++;
+        var deviceRates = snapshot.Devices
+            .Where(device => device.Current is not null)
+            .Select(device => device.Current!)
+            .ToArray();
+        double? deviceReadRate = deviceRates.Length == 0
+            ? null
+            : deviceRates.Sum(rate => rate.ReadBytesPerSecond);
+        double? deviceWriteRate = deviceRates.Length == 0
+            ? null
+            : deviceRates.Sum(rate => rate.WriteBytesPerSecond);
         var restricted = snapshot.Summary.RestrictedProcesses;
         StatusText = $"第 {_refreshCount:N0} 次实时刷新 · "
             + $"{snapshot.Summary.ReadableProcesses:N0} 个可读进程 · "
-            + $"{restricted:N0} 个受限进程";
+            + $"{restricted:N0} 个受限进程 · "
+            + $"{snapshot.Summary.DeviceCount:N0} 个设备";
         InformationTitle = snapshot.Freshness == "fresh"
             ? "Windows ETW 实时采集中"
             : "Windows 实时数据已过期";
         InformationMessage = $"来源：{DisplaySource(snapshot.MetricSource)}；"
             + $"完整性：{DisplayCompleteness(snapshot.Completeness)}。"
+            + $"设备当前读取 {IOPresentation.Rate(deviceReadRate)}，"
+            + $"写入 {IOPresentation.Rate(deviceWriteRate)}；"
+            + $"未归因事件 {snapshot.Summary.UnmappedDiskEvents:N0}，"
+            + $"事件丢失 {snapshot.Summary.EventsLost:N0}，"
+            + $"缓冲区丢失 {snapshot.Summary.BuffersLost:N0}。"
             + "关闭窗口后仍在通知区域采集，显式退出会停止协议与服务。";
         InformationSeverity = snapshot.Freshness == "fresh"
             && snapshot.Completeness == "complete"

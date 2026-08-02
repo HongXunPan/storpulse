@@ -21,9 +21,22 @@ internal sealed class RealtimeSnapshotData
 
     public string Completeness { get; init; } = "restricted";
 
+    public RealtimeDeviceData[] Devices { get; init; } = [];
+
     public RealtimeApplicationData[] Applications { get; init; } = [];
 
     public RealtimeSummaryData Summary { get; init; } = new();
+}
+
+internal sealed class RealtimeDeviceData
+{
+    public string DeviceId { get; init; } = string.Empty;
+
+    public RealtimeRateData? Current { get; init; }
+
+    public ulong RunReadBytes { get; init; }
+
+    public ulong RunWriteBytes { get; init; }
 }
 
 internal sealed class RealtimeApplicationData
@@ -62,5 +75,13 @@ internal sealed class RealtimeSummaryData
 
     public int ExitedProcesses { get; init; }
 
+    public int DeviceCount { get; init; }
+
     public string LastSuccessfulSampleAt { get; init; } = string.Empty;
+
+    public ulong UnmappedDiskEvents { get; init; }
+
+    public ulong EventsLost { get; init; }
+
+    public ulong BuffersLost { get; init; }
 }
