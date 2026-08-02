@@ -49,7 +49,7 @@ internal static class NativeMethods
         nuint subclassId,
         nuint referenceData);
 
-    [DllImport("shell32.dll", EntryPoint = "Shell_NotifyIconW", SetLastError = true)]
+    [DllImport("shell32.dll", EntryPoint = "Shell_NotifyIconW")]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool ShellNotifyIcon(
         uint message,

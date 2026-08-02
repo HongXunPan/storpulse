@@ -127,10 +127,9 @@ internal sealed class NotificationAreaController : IDisposable
             ItemGuid = NotificationIconGuid,
         };
 
-        ShellGateConsoleReporter.Stage("notification_area_icon_add_started");
-        if (!NativeMethods.ShellNotifyIcon(NotifyIconAdd, ref _iconData))
+        if (!TryAddIconWithGuid())
         {
-            throw new Win32Exception(Marshal.GetLastWin32Error());
+            AddIconWithWindowId();
         }
 
         _iconAdded = true;
@@ -139,14 +138,42 @@ internal sealed class NotificationAreaController : IDisposable
         ShellGateConsoleReporter.Stage("notification_area_icon_version_started");
         if (!NativeMethods.ShellNotifyIcon(NotifyIconSetVersion, ref _iconData))
         {
-            var nativeErrorCode = Marshal.GetLastWin32Error();
             DeleteIcon();
             ShellGateConsoleReporter.Stage("notification_area_icon_version_failed");
-            throw new Win32Exception(nativeErrorCode);
+            throw new InvalidOperationException(
+                "Shell_NotifyIcon(NIM_SETVERSION) 返回失败，系统未提供扩展错误码。");
         }
         ShellGateConsoleReporter.Stage("notification_area_icon_version_completed");
 
         ShellGateConsoleReporter.Stage("notification_area_icon_added");
+    }
+
+    private bool TryAddIconWithGuid()
+    {
+        ShellGateConsoleReporter.Stage("notification_area_icon_add_guid_started");
+        if (!NativeMethods.ShellNotifyIcon(NotifyIconAdd, ref _iconData))
+        {
+            ShellGateConsoleReporter.Stage("notification_area_icon_add_guid_failed");
+            return false;
+        }
+
+        ShellGateConsoleReporter.Stage("notification_area_icon_add_guid_completed");
+        return true;
+    }
+
+    private void AddIconWithWindowId()
+    {
+        _iconData.Flags &= ~NotifyIconFlagGuid;
+        _iconData.ItemGuid = Guid.Empty;
+        ShellGateConsoleReporter.Stage("notification_area_icon_add_window_id_started");
+        if (!NativeMethods.ShellNotifyIcon(NotifyIconAdd, ref _iconData))
+        {
+            ShellGateConsoleReporter.Stage("notification_area_icon_add_window_id_failed");
+            throw new InvalidOperationException(
+                "Shell_NotifyIcon(NIM_ADD) 无法通过 GUID 或窗口标识添加通知区域图标。");
+        }
+
+        ShellGateConsoleReporter.Stage("notification_area_icon_add_window_id_completed");
     }
 
     private void DeleteIcon()
